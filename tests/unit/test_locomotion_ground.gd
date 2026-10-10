@@ -68,3 +68,7 @@ func test_gravity_applies_in_air():
 	var air := {"on_floor": false, "wall_normal": Vector3.ZERO, "ledge_top": false}
 	var v := l.step(_intent(), air, DT)
 	assert_almost(v.y, -t.gravity * DT)
+
+func test_in_combat_walk_turns_to_move():
+	var i := _intent(Vector2(0.3, 0)); i.in_combat = true
+	assert_true(Locomotion.turns_to_move(i, t))

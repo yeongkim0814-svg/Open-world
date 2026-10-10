@@ -141,9 +141,9 @@ func move_dir(intent: InputIntent) -> Vector3:
 
 
 ## 캐릭터가 이동 방향으로 몸을 돌려야 하는지.
-## 자동 달리기 → 항상 / 오른손 시점 조작 중 → 유지 / 달리기 → 회전 / 걷기 → 유지.
+## 자동 달리기·전투 상태 → 항상 / 오른손 시점 조작 중 → 유지 / 달리기 → 회전 / 걷기 → 유지.
 static func turns_to_move(intent: InputIntent, tuning: MovementTuning) -> bool:
-	if intent.auto_run:
+	if intent.auto_run or intent.in_combat:
 		return true
 	if intent.camera_held:
 		return false
