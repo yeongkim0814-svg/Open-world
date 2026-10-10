@@ -11,6 +11,7 @@ const ATTACK_ARC_DEG := 120.0       ## 공격 판정 정면 각 (전체)
 const LIGHT_COOLDOWN := 0.35
 const HEAVY_COOLDOWN := 0.7
 const FLURRY_COOLDOWN := 0.12       ## 슬로우모션 연타 중 공격 간격
+const WEAPON_BLOCK_LEAK := 0.3      ## 방패 없이 무기로 막으면 피해의 30%가 들어옴 (3.3)
 
 @export var combat_tuning: CombatTuning = preload("res://resources/combat_tuning.tres")
 @export var has_shield := false     ## M2: 디버그용. 장비 시스템은 이후
@@ -41,8 +42,15 @@ func is_stunned() -> bool:
 	return _stun > 0.0
 
 
-func reset_hp() -> void:
+## 쓰러진 뒤 재시작: 체력·경직·방어·연타·콤보를 모두 초기화.
+func reset() -> void:
 	hp = combat_tuning.player_max_hp
+	_stun = 0.0
+	_cooldown = 0.0
+	_combo_step = 0
+	_combo_timer = 0.0
+	guard = Guard.new(combat_tuning)
+	flurry = Flurry.new(combat_tuning)
 
 
 func tick(intent: InputIntent, delta: float) -> void:
@@ -72,7 +80,9 @@ func on_enemy_hit(attack: EnemyAttack, enemy: Node3D, damage: float) -> void:
 	if _player.locomotion.is_invulnerable():
 		last_result = "회피"
 		return
-	match guard.resolve(attack.parryable, has_shield):
+	var stamina := _player.stamina
+	var can_afford := not stamina.exhausted and stamina.value >= combat_tuning.guard_cost
+	match guard.resolve(attack.parryable, has_shield, can_afford):
 		Guard.Result.PARRIED:
 			last_result = "패링!"
 			flurry.start()
@@ -80,7 +90,9 @@ func on_enemy_hit(attack: EnemyAttack, enemy: Node3D, damage: float) -> void:
 				enemy.stagger()
 		Guard.Result.BLOCKED:
 			last_result = "막기"
-			_player.stamina.spend(combat_tuning.guard_cost)
+			stamina.spend(combat_tuning.guard_cost)
+			if not has_shield:
+				_take_damage(damage * WEAPON_BLOCK_LEAK)
 		Guard.Result.GUARD_BREAK:
 			last_result = "가드 브레이크"
 			_stun = ENEMY_DAMAGE_STUN

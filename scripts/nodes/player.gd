@@ -31,7 +31,7 @@ var parts := 0                     ## 주운 기계 부품 수 (M2)
 
 func _ready() -> void:
 	stamina = Stamina.new(tuning)
-	locomotion = Locomotion.new(tuning, stamina)
+	locomotion = Locomotion.new(tuning, stamina, combat.combat_tuning)
 	respawn = RespawnTracker.new(tuning.fall_respawn_y)
 	respawn.safe_point = global_position
 	add_to_group("player")
@@ -113,13 +113,13 @@ func _aim_probe() -> void:
 	_probe.rotation.y = atan2(-dir.x, -dir.z) if not dir.is_zero_approx() else _facing.rotation.y
 
 
-func _respawn() -> void:
+func _respawn(await_release := true) -> void:
 	global_position = respawn.safe_point + Vector3.UP
 	velocity = Vector3.ZERO
 	locomotion.velocity = Vector3.ZERO
 	locomotion.state = Locomotion.State.AIRBORNE
-	_await_stick_release = true
-	combat.reset_hp()
+	_await_stick_release = await_release
+	combat.reset()
 	if touch_controls:
 		touch_controls.cancel_auto_run()
 	reset_physics_interpolation()
@@ -161,7 +161,10 @@ func _update_combat_context(delta: float) -> void:
 			touch_controls.cancel_auto_run()
 	if _intent.in_combat:
 		_intent.auto_run = false
-		_camera.follow(_facing.rotation.y, delta, _intent.camera_held, locomotion.state == Locomotion.State.DODGING)
+		# 이동 중에는 정렬하지 않는다: 이동은 카메라 기준 → 캐릭터가 이동 방향으로 회전 → 카메라가 캐릭터를 따라감
+		# 이 세 규칙이 맞물리면 옆·뒤로 움직일 때 끝없이 회전한다. 멈추면 0.5초 뒤 등 뒤로 정렬.
+		var moving := not _intent.move.is_zero_approx()
+		_camera.follow(_facing.rotation.y, delta, _intent.camera_held or moving, locomotion.state == Locomotion.State.DODGING)
 
 
 func facing_forward() -> Vector3:
@@ -189,8 +192,10 @@ func play_swing(step: int, heavy: bool) -> void:
 	_swing_tween.tween_property(_sword, "rotation", Vector3.ZERO, 0.15)
 
 
+## 전투에서 쓰러짐: 스틱을 놓을 때까지 기다리지 않고 바로 조작 가능 (적이 계속 공격 중일 수 있음).
 func _on_died() -> void:
-	_respawn()
+	_respawn(false)
+	combat.last_result = "쓰러짐"
 
 
 ## 앞쪽 가까운 상호작용 대상을 골라 팝업을 띄우고, 누르면 실행한다. 전투 중에도 동작 (C15).

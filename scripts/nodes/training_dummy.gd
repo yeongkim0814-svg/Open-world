@@ -24,6 +24,7 @@ var _cooldown := 1.0
 var _count := 0
 var _dead_time := 0.0
 var _hit_flash := 0.0
+var _alerted := false
 
 @onready var _head_mat: StandardMaterial3D = ($Head as MeshInstance3D).get_surface_override_material(0)
 @onready var _body_mat: StandardMaterial3D = ($Body as MeshInstance3D).get_surface_override_material(0)
@@ -40,9 +41,17 @@ func is_alive() -> bool:
 	return hp > 0.0
 
 
+## 한 번 경계하면 전투 해제 거리(25m)를 벗어날 때까지 유지 (전투 상태 히스테리시스가 실제로 작동하도록).
 func is_alerted() -> bool:
-	var p := _player()
-	return is_alive() and p != null and global_position.distance_to(p.global_position) <= alert_range
+	return is_alive() and _alerted
+
+
+func _update_alert(p: Node3D) -> void:
+	var d := global_position.distance_to(p.global_position)
+	if d <= alert_range:
+		_alerted = true
+	elif d > combat_tuning.combat_exit_dist:
+		_alerted = false
 
 
 func is_threatening() -> bool:
@@ -79,6 +88,7 @@ func _physics_process(delta: float) -> void:
 	var p := _player()
 	if p == null:
 		return
+	_update_alert(p)
 	_face(p.global_position, scaled)
 	if _stagger > 0.0:
 		_stagger -= scaled

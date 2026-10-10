@@ -49,8 +49,9 @@ func hide_interact() -> void:
 	show_interact("")
 
 
+## 점프/회피 버튼 위쪽, 버튼들과 40px 이상 띄운 자리 (회피 탭이 줍기로 새지 않게).
 func _interact_rect() -> Rect2:
-	return Rect2(Vector2(size.x - 420, size.y - 360), Vector2(240, 64))
+	return Rect2(Vector2(size.x - 300, size.y - 500), Vector2(260, 64))
 
 
 func cancel_auto_run() -> void:
@@ -89,10 +90,6 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_touch_down(index: int, pos: Vector2) -> void:
-	if not _interact_label.is_empty() and _interact_rect().has_point(pos):
-		_interact_queued = true
-		_button_touches[index] = "interact"
-		return
 	var buttons := _buttons()
 	for name in buttons:
 		if pos.distance_to(buttons[name]) <= BUTTON_RADIUS:
@@ -103,6 +100,10 @@ func _on_touch_down(index: int, pos: Vector2) -> void:
 				"guard": _guard_queued = true
 			queue_redraw()
 			return
+	if not _interact_label.is_empty() and _interact_rect().has_point(pos):
+		_interact_queued = true
+		_button_touches[index] = "interact"
+		return
 	if pos.x < size.x * STICK_AREA_RATIO:
 		_auto_run = false
 		_stick.press(index, pos)

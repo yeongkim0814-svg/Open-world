@@ -36,3 +36,7 @@ func test_released_late_press_is_hit():
 
 func test_no_guard_is_hit():
 	assert_eq(Guard.new(t).resolve(true, false), Guard.Result.HIT)
+
+func test_block_without_stamina_breaks_guard():           # 리뷰 Important 4
+	var g := Guard.new(t); g.press(); g.tick(0.5)
+	assert_eq(g.resolve(true, true, false), Guard.Result.GUARD_BREAK)

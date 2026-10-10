@@ -33,11 +33,12 @@ func tick(delta: float) -> void:
 	_since_press += delta
 
 
-## 적 공격이 맞는 순간(&"hit") 호출. parryable = 🟡, has_shield = 방패 장착.
-func resolve(parryable: bool, has_shield: bool) -> Result:
+## 적 공격이 맞는 순간(&"hit") 호출. parryable = 🟡, has_shield = 방패 장착,
+## can_afford_block = 막기에 쓸 스태미나가 남아 있는지 (없으면 막기가 가드 브레이크로 바뀜).
+func resolve(parryable: bool, has_shield: bool, can_afford_block := true) -> Result:
 	var window := (_t.parry_window_shield if has_shield else _t.parry_window_weapon) * _ratio
 	if parryable and _since_press <= window:
 		return Result.PARRIED
 	if holding:
-		return Result.BLOCKED if parryable else Result.GUARD_BREAK
+		return Result.BLOCKED if parryable and can_afford_block else Result.GUARD_BREAK
 	return Result.HIT
