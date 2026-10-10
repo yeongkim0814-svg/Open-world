@@ -18,6 +18,7 @@ var _button_touches := {}            ## index -> 버튼 이름
 var _jump_queued := false
 var _auto_run := false
 var _threatened := false
+var _swimming := false
 var _attack_hold := -1.0             ## 공격 버튼 누른 시간 (s), 안 누르면 -1
 var _attack_release_queued := 0      ## 0 없음 / 1 탭 / 2 강공격
 var _guard_queued := false
@@ -37,6 +38,13 @@ func _ready() -> void:
 
 
 ## 적이 공격 중일 때 점프 버튼 아이콘을 회피로 바꾼다 (C16).
+## 헤엄치는 중: 점프 버튼 = 가속.
+func set_swimming(swimming: bool) -> void:
+	if _swimming != swimming:
+		_swimming = swimming
+		queue_redraw()
+
+
 func set_threatened(threatened: bool) -> void:
 	if _threatened != threatened:
 		_threatened = threatened
@@ -212,7 +220,7 @@ func _draw() -> void:
 		var alpha: float = 0.6 if held.has(name) else 0.35
 		var tint := Color(1, 0.85, 0.3, alpha) if name == "jump" and _threatened else Color(1, 1, 1, alpha)
 		draw_circle(buttons[name], _radius(name), tint)
-	draw_string(font, buttons["jump"] + Vector2(-24, 8), "회피" if _threatened else "점프", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
+	draw_string(font, buttons["jump"] + Vector2(-24, 8), "회피" if _threatened else ("가속" if _swimming else "점프"), HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 	draw_string(font, buttons["attack"] + Vector2(-24, 8), "공격", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 	draw_string(font, buttons["guard"] + Vector2(-24, 8), "방어", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 	draw_string(font, buttons["weapon"] + Vector2(-40, 8), _weapon_label, HORIZONTAL_ALIGNMENT_CENTER, 80, 20)

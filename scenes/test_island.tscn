@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/machine_blade.tscn" id="blade"]
 [ext_resource type="PackedScene" path="res://scenes/machine_cannon.tscn" id="cannon"]
 [ext_resource type="PackedScene" path="res://scenes/repair_bench.tscn" id="bench"]
+[ext_resource type="Script" path="res://scripts/nodes/water.gd" id="water"]
 
 [sub_resource type="BoxMesh" id="Mesh1"]
 size = Vector3(20, 5, 10)
@@ -84,6 +85,18 @@ size = Vector3(10, 1, 40)
 [sub_resource type="BoxShape3D" id="RampShape"]
 size = Vector3(10, 1, 40)
 
+[sub_resource type="BoxMesh" id="BeachMesh"]
+size = Vector3(16, 1, 20)
+
+[sub_resource type="BoxShape3D" id="BeachShape"]
+size = Vector3(16, 1, 20)
+
+[sub_resource type="BoxMesh" id="IsletMesh"]
+size = Vector3(24, 6, 24)
+
+[sub_resource type="BoxShape3D" id="IsletShape"]
+size = Vector3(24, 6, 24)
+
 [sub_resource type="PlaneMesh" id="SeaMesh"]
 size = Vector2(2000, 2000)
 
@@ -117,6 +130,31 @@ directional_shadow_max_distance = 120.0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2, 0)
 mesh = SubResource("SeaMesh")
 surface_material_override/0 = SubResource("Mat_sea")
+
+[node name="SeaWater" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -22, 0)
+script = ExtResource("water")
+size = Vector3(2000, 40, 2000)
+
+[node name="Beach" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.970, -0.242, 0, 0.242, 0.970, -30, -2.9, 158)
+
+[node name="Mesh" type="MeshInstance3D" parent="Beach"]
+mesh = SubResource("BeachMesh")
+surface_material_override/0 = SubResource("Mat_ground")
+
+[node name="Shape" type="CollisionShape3D" parent="Beach"]
+shape = SubResource("BeachShape")
+
+[node name="Islet" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, -2.5, 205)
+
+[node name="Mesh" type="MeshInstance3D" parent="Islet"]
+mesh = SubResource("IsletMesh")
+surface_material_override/0 = SubResource("Mat_ground")
+
+[node name="Shape" type="CollisionShape3D" parent="Islet"]
+shape = SubResource("IsletShape")
 
 [node name="IslandGround" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.0, 0)
@@ -238,6 +276,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 10)
 
 [node name="MachineCannon" parent="." instance=ExtResource("cannon")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 5)
+
+[node name="IsletPart" parent="." instance=ExtResource("part")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0.5, 205)
 
 [node name="RepairBench" parent="." instance=ExtResource("bench")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 58)

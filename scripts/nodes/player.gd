@@ -78,11 +78,16 @@ func _physics_process(delta: float) -> void:
 	if locomotion.state == Locomotion.State.CLIMBING and touch_controls:
 		touch_controls.cancel_auto_run()
 	velocity = v
+	if locomotion.drowned:
+		_respawn()                  # 바다 쪽으로 밀던 스틱을 한 번 놓을 때까지 대기
+		combat.last_result = "익사"
+		return
 	if locomotion.state == Locomotion.State.GROUNDED and velocity.y <= 0.0:
 		velocity.y = -GROUND_STICK_SPEED
 	move_and_slide()
 	stamina.tick(delta)
-	if respawn.update(global_position, is_on_floor(), _on_stable_ground(), delta):
+	# 물에 잠긴 곳은 안전 지점이 아니다 (익사 후 물속에서 다시 시작하지 않게)
+	if respawn.update(global_position, is_on_floor(), _on_stable_ground() and _water_depth() <= 0.0, delta):
 		_respawn()
 	_update_facing(delta)
 	_update_camera(delta)
@@ -99,7 +104,16 @@ func _sense() -> Dictionary:
 		"wall_normal": wall_normal,
 		"ledge_top": locomotion.state == Locomotion.State.CLIMBING \
 				and _wall_ray.is_colliding() and not _head_ray.is_colliding(),
+		"water_depth": _water_depth(),
 	}
+
+
+## 발이 가장 깊이 잠긴 물의 깊이 (물 밖이면 -1).
+func _water_depth() -> float:
+	var depth := -1.0
+	for w in get_tree().get_nodes_in_group("water"):
+		depth = maxf(depth, w.depth_at(global_position))
+	return depth
 
 
 ## 바라보기 (ViewRule): 항상 카메라 방향 / 등반 = 벽 / 회피 = 고정.
@@ -145,6 +159,7 @@ func _respawn(await_release := true) -> void:
 	velocity = Vector3.ZERO
 	locomotion.velocity = Vector3.ZERO
 	locomotion.state = Locomotion.State.AIRBORNE
+	locomotion.drowned = false
 	_await_stick_release = await_release
 	combat.reset()
 	if touch_controls:
@@ -186,6 +201,7 @@ func _update_combat_context(delta: float) -> void:
 	_intent.facing_yaw = _camera.yaw     # 회피 방향은 카메라 기준
 	if touch_controls:
 		touch_controls.set_threatened(threatened)
+		touch_controls.set_swimming(locomotion.state == Locomotion.State.SWIMMING)
 		touch_controls.set_weapon_label(combat.arsenal.current().display_name)
 
 

@@ -24,6 +24,15 @@ extends Resource
 @export var glide_cost := 8.0
 @export var exhausted_recover_ratio := 0.3
 
+@export_group("수영")
+@export var swim_depth := 1.2           ## 발이 수면 아래 이만큼 이상이면 헤엄 (이보다 얕으면 걸음)
+@export var swim_speed := 2.5
+@export var swim_cost := 5.0            ## 헤엄치는 동안 초당 소모. 가만히 떠 있으면 소모도 회복도 없음
+@export var swim_dash_speed := 5.5      ## 점프 버튼 = 가속
+@export var swim_dash_time := 0.5
+@export var swim_dash_cost := 15.0
+@export var drown_time := 1.5           ## 물에서 탈진한 뒤 익사까지 (s)
+
 @export_group("등반")
 @export var climb_grab_angle_deg := 40.0   ## 이동 방향과 벽 정면의 각이 이 이내일 때만 자동 등반
 

@@ -2,7 +2,7 @@ class_name DebugHud
 extends Label
 ## 성능·상태 표시. 1초 단위 평균/최악 프레임 시간, 3초마다 PERF 로그.
 
-const STATE_NAMES := ["GROUNDED", "AIRBORNE", "CLIMBING", "GLIDING", "DODGING"]
+const STATE_NAMES := ["GROUNDED", "AIRBORNE", "CLIMBING", "GLIDING", "DODGING", "SWIMMING"]
 
 @export var player: Player
 

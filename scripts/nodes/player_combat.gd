@@ -73,6 +73,12 @@ func tick(intent: InputIntent, delta: float) -> void:
 	_combo_timer = maxf(_combo_timer - delta, 0.0)
 	if _combo_timer <= 0.0:
 		_combo_step = 0
+	if _player and _player.locomotion.state == Locomotion.State.SWIMMING:
+		if guard.holding:
+			guard.release()
+		if _draw:
+			_draw.cancel()
+		return                      # 헤엄치는 중에는 공격·방어 불가
 	if intent.guard_pressed:
 		guard.press()
 	if not intent.guard_held and guard.holding:
