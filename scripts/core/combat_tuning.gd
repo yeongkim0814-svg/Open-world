@@ -37,3 +37,13 @@ extends Resource
 @export var heavy_damage := 25.0
 @export var combo_window := 0.6
 @export var player_max_hp := 100.0
+
+@export_group("무기·내구도")
+@export var broken_damage_mult := 0.25   ## 파손 무기 피해 배율
+@export var weak_point_mult := 2.0       ## 약점(코어) 명중 배율
+@export var wear_hit := 1.0              ## 적을 맞힐 때 (활은 발사마다)
+@export var wear_block := 3.0            ## 무기로 막을 때
+@export var wear_parry := 1.0            ## 무기로 패링할 때
+@export var hit_stagger_time := 0.8      ## 대검 강공격에 맞은 적의 경직 (s)
+@export var arrow_gravity := 6.0
+@export var arrow_max_dist := 80.0

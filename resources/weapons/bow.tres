@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "활"
+kind = 1
+damage = 20.0
+light_cooldown = 0.3
+durability = 50.0
+draw_time = 0.6
+min_draw_ratio = 0.3
+arrow_speed = 45.0

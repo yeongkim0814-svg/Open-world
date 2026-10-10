@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "한손검"
+damage = 10.0
+heavy_damage = 25.0
+light_cooldown = 0.35
+heavy_cooldown = 0.7
+reach = 1.8
+arc_deg = 120.0
+durability = 40.0
