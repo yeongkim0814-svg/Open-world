@@ -14,6 +14,7 @@ git clone -b ccr-7055dd61-i6feki https://github.com/yeongkim0814-svg/Open-world.
 > push(기록 올리기)에는 GitHub 인증이 필요하다: GitHub → Settings → Developer settings → Personal access token 발급 후, push 시 비밀번호 자리에 토큰 입력.
 
 Godot Android 에디터 → **가져오기(Import)** → `Open-world/project.godot` 선택 → 실행(▶).
+- **측정 전 필수:** 게임이 에디터 옆(분할 화면)이나 에디터 안에 작게 뜨면 가로 고정·성능 측정이 틀어진다. 에디터 설정(Editor Settings)의 실행 창 배치(Run → Window Placement) 항목을 **전체 화면**으로 바꾸고, 게임이 화면 전체에 가로로 뜨는지 확인한 뒤 측정한다.
 - 왼쪽 화면 아무 곳 누르고 끌기 = 이동 (끝까지 밀면 전력질주)
 - 오른쪽 화면 끌기 = 카메라
 - 오른쪽 위 밝은 원 = 점프 (공중에서 다시 누르면 활공 / 벽 쪽으로 밀면 등반)

@@ -57,3 +57,43 @@ func test_glider_closes_when_stamina_empty():      # Review Focus 2
 	s.spend(99.99)
 	l.step(_intent(Vector2(0, 1)), air, 1.0)
 	assert_eq(l.state, Locomotion.State.AIRBORNE)
+
+func _hop(l: Locomotion) -> void:
+	var top := wall.duplicate(); top["ledge_top"] = true
+	l.state = Locomotion.State.CLIMBING
+	l.step(_intent(Vector2(0, 1)), top, DT)
+
+func test_ledge_hop_forward_ignores_camera_yaw():          # 리뷰 Important 1
+	var l := Locomotion.new(t, Stamina.new(t)); _hop(l)
+	var i := _intent(Vector2(0, 1)); i.camera_yaw = PI / 2
+	var v := l.step(i, air, DT)
+	assert_almost(v.x, 0.0, 0.001, "카메라가 옆이어도 옆으로 흐르면 안 됨")
+	assert_true(v.z < 0.0, "벽 너머 방향 유지")
+
+func test_ledge_hop_forward_kept_without_stick():           # 리뷰 Important 1
+	var l := Locomotion.new(t, Stamina.new(t)); _hop(l)
+	var v := l.step(_intent(), air, DT)
+	assert_true(v.z < 0.0, "스틱을 놓아도 벽 너머로 넘어가야 함")
+
+func test_pull_down_at_wall_base_lets_go():                 # 리뷰 Important 2
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
+	var base := wall.duplicate(); base["on_floor"] = true
+	l.step(_intent(Vector2(0, -1)), base, DT)
+	assert_eq(l.state, Locomotion.State.GROUNDED)
+
+func test_hanging_still_does_not_regen():                   # 리뷰 Important 3
+	var s := Stamina.new(t); s.spend(50.0)
+	var l := Locomotion.new(t, s); l.state = Locomotion.State.CLIMBING
+	for k in 300:
+		l.step(_intent(), wall, DT)
+		s.tick(DT)
+	assert_almost(s.value, 50.0, 0.01)
+
+func test_climb_jump_regrabs_regardless_of_camera():        # 리뷰 Important 4
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
+	var i := _intent(Vector2(0, 1), true); i.camera_yaw = PI / 2
+	l.step(i, wall, DT)
+	assert_eq(l.state, Locomotion.State.AIRBORNE)
+	var j := _intent(Vector2(0, 1)); j.camera_yaw = PI / 2
+	l.step(j, wall, DT)
+	assert_eq(l.state, Locomotion.State.CLIMBING)

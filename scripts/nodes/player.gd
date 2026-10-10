@@ -80,3 +80,5 @@ func _respawn() -> void:
 	velocity = Vector3.ZERO
 	locomotion.velocity = Vector3.ZERO
 	locomotion.state = Locomotion.State.AIRBORNE
+	reset_physics_interpolation()
+	_camera.reset_physics_interpolation()

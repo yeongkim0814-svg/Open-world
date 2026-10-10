@@ -36,6 +36,11 @@ func drain(rate: float, delta: float) -> bool:
 	return value > 0.0
 
 
+## 소모 없이 회복만 막는다 (예: 벽에 매달려 정지 중).
+func hold() -> void:
+	_since_spend = 0.0
+
+
 func tick(delta: float) -> void:
 	var regen_time := delta
 	var delay := _tuning.stamina_regen_delay
