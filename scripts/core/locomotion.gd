@@ -182,7 +182,8 @@ func _step_climbing(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 		_climb_jumping = true
 		return
 	var right := Vector3.UP.cross(wn).normalized()
-	velocity = (right * intent.move.x + Vector3.UP * intent.move.y) * _t.climb_speed - wn * WALL_STICK_SPEED
+	var up := (Vector3.UP - wn * wn.y).normalized()     # 벽면을 따라 위로 (수직 벽이면 UP, 경사면이면 면을 따라)
+	velocity = (right * intent.move.x + up * intent.move.y) * _t.climb_speed - wn * WALL_STICK_SPEED
 	if intent.move.is_zero_approx():
 		_stamina.hold()
 	elif not _stamina.drain(_t.climb_cost, delta):
@@ -228,7 +229,8 @@ func _try_start_climb(intent: InputIntent, sense: Dictionary) -> bool:
 	if (_regrab_block > 0.0 or _hop_guard) and velocity.y > -HOP_REGRAB_FALL_SPEED:
 		return false
 	var regrab := _climb_jumping and intent.move.y > 0.0
-	var into_wall := _world_dir(intent).dot(-wn) >= cos(deg_to_rad(_t.climb_grab_angle_deg))
+	var wall_facing := Vector3(-wn.x, 0.0, -wn.z).normalized()     # 경사면 법선의 위쪽 성분은 빼고 수평 방향끼리 비교
+	var into_wall := _world_dir(intent).dot(wall_facing) >= cos(deg_to_rad(_t.climb_grab_angle_deg))
 	if not regrab and not into_wall:
 		return false
 	_climb_jumping = false
@@ -245,9 +247,12 @@ func move_dir(intent: InputIntent) -> Vector3:
 
 ## 달리기인지: 자동 달리기, 또는 스틱을 정면 run_cone_deg 안으로 run_threshold 이상 밀었을 때.
 ## 옆·뒤로 미는 것은 세기와 상관없이 걷기 (캐릭터는 항상 카메라를 보므로 게걸음·뒷걸음).
-## 오를 수 있는 면: 45° 이상 경사(걷기 한계와 일치)·수직 벽·약한 오버행. 천장은 불가.
+## 오를 수 있는 면: 60° 이상 경사·수직 벽·약한 오버행. 천장은 불가.
+## 60°까지는 걸어서 오른다 (Player floor_max_angle = 60°) → 걷기와 등반 사이 미끄럼 구간 없음.
+const CLIMB_MIN_SLOPE_COS := 0.51     ## cos 60° = 0.5, 경계에서 겹치게 약간 크게
+
 static func is_climbable(normal: Vector3) -> bool:
-	return normal.y < 0.7 and normal.y > -0.3
+	return normal.y < CLIMB_MIN_SLOPE_COS and normal.y > -0.3
 
 
 static func wants_run(intent: InputIntent, tuning: MovementTuning) -> bool:

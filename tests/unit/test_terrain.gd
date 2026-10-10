@@ -44,9 +44,9 @@ func test_heights_array_size():
 	var f := HeightField.new(img, 4.0, -10.0, 60.0)
 	assert_eq(TerrainMesh.heights(f, 2.0).size(), 9)
 
-func test_climbable_slopes():                         # Review Focus 5
-	assert_true(Locomotion.is_climbable(Vector3(0, cos(deg_to_rad(50)), sin(deg_to_rad(50)))))
-	assert_false(Locomotion.is_climbable(Vector3(0, cos(deg_to_rad(40)), sin(deg_to_rad(40)))))
+func test_climbable_slopes():                         # Review Focus 5: 60°까지 걷기, 그 이상 등반
+	assert_true(Locomotion.is_climbable(Vector3(0, cos(deg_to_rad(65)), sin(deg_to_rad(65)))))
+	assert_false(Locomotion.is_climbable(Vector3(0, cos(deg_to_rad(55)), sin(deg_to_rad(55)))))
 	assert_true(Locomotion.is_climbable(Vector3(0, 0, 1)))
 	assert_false(Locomotion.is_climbable(Vector3.DOWN))
 

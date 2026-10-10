@@ -99,6 +99,8 @@ func _sense() -> Dictionary:
 		var n := _wall_ray.get_collision_normal()
 		if Locomotion.is_climbable(n):
 			wall_normal = n
+	elif is_on_wall() and Locomotion.is_climbable(get_wall_normal()):
+		wall_normal = get_wall_normal()     # 가파른 지형 경사: 가슴 높이 레이가 경사면과 나란해 빗나갈 때
 	return {
 		"on_floor": is_on_floor(),
 		"wall_normal": wall_normal,

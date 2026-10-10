@@ -13,6 +13,7 @@
 [ext_resource type="PackedScene" path="res://scenes/tower.tscn" id="tower"]
 [ext_resource type="PackedScene" path="res://scenes/machine_blade.tscn" id="blade"]
 [ext_resource type="PackedScene" path="res://scenes/machine_cannon.tscn" id="cannon"]
+[ext_resource type="Script" path="res://scripts/nodes/aqueduct.gd" id="aqueduct"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
 sky_top_color = Color(0.5, 0.52, 0.55, 1)
@@ -79,6 +80,71 @@ radial_segments = 8
 [sub_resource type="CylinderShape3D" id="Pillar2Shape"]
 radius = 2.6
 height = 11.1
+
+[sub_resource type="ShaderMaterial" id="RockMat"]
+shader = ExtResource("vshader")
+shader_parameter/albedo = Color(0.77, 0.6, 0.42, 1)
+
+[sub_resource type="BoxMesh" id="WallLowMesh"]
+size = Vector3(24, 23, 10)
+
+[sub_resource type="BoxShape3D" id="WallLowShape"]
+size = Vector3(24, 23, 10)
+
+[sub_resource type="BoxMesh" id="WallHighMesh"]
+size = Vector3(24, 28, 10)
+
+[sub_resource type="BoxShape3D" id="WallHighShape"]
+size = Vector3(24, 28, 10)
+
+[sub_resource type="BoxMesh" id="LaunchMesh"]
+size = Vector3(4, 3, 4)
+
+[sub_resource type="BoxShape3D" id="LaunchShape"]
+size = Vector3(4, 3, 4)
+
+[sub_resource type="ShaderMaterial" id="RuinMat"]
+shader = ExtResource("vshader")
+shader_parameter/albedo = Color(0.45, 0.47, 0.52, 1)
+
+[sub_resource type="BoxMesh" id="OutWallMesh"]
+size = Vector3(18, 2.2, 1)
+
+[sub_resource type="BoxShape3D" id="OutWallShape"]
+size = Vector3(18, 2.2, 1)
+
+[sub_resource type="BoxMesh" id="OutSideMesh"]
+size = Vector3(1, 2.2, 18)
+
+[sub_resource type="BoxShape3D" id="OutSideShape"]
+size = Vector3(1, 2.2, 18)
+
+[sub_resource type="ShaderMaterial" id="WallWhite"]
+shader = ExtResource("vshader")
+shader_parameter/albedo = Color(0.95, 0.93, 0.89, 1)
+
+[sub_resource type="ShaderMaterial" id="RoofOrange"]
+shader = ExtResource("vshader")
+shader_parameter/albedo = Color(0.85, 0.47, 0.29, 1)
+
+[sub_resource type="BoxMesh" id="HouseMesh"]
+size = Vector3(5, 3.5, 5)
+
+[sub_resource type="BoxShape3D" id="HouseShape"]
+size = Vector3(5, 3.5, 5)
+
+[sub_resource type="PrismMesh" id="RoofMesh"]
+size = Vector3(5.8, 2, 5.8)
+
+[sub_resource type="CylinderMesh" id="WellMesh"]
+top_radius = 1.4
+bottom_radius = 1.5
+height = 1.0
+radial_segments = 10
+
+[sub_resource type="CylinderShape3D" id="WellShape"]
+radius = 1.5
+height = 1.0
 
 [sub_resource type="PlaneMesh" id="SeaMesh"]
 size = Vector2(2000, 2000)
@@ -154,8 +220,181 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 18.2, -1.5)
 [node name="TowerCannon" parent="." instance=ExtResource("cannon")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 18.2, -1.5)
 
+[node name="RockWallLow" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 21.5, -85)
+
+[node name="Mesh" type="MeshInstance3D" parent="RockWallLow"]
+mesh = SubResource("WallLowMesh")
+surface_material_override/0 = SubResource("RockMat")
+
+[node name="Shape" type="CollisionShape3D" parent="RockWallLow"]
+shape = SubResource("WallLowShape")
+
+[node name="RockWallHigh" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 34, -89)
+
+[node name="Mesh" type="MeshInstance3D" parent="RockWallHigh"]
+mesh = SubResource("WallHighMesh")
+surface_material_override/0 = SubResource("RockMat")
+
+[node name="Shape" type="CollisionShape3D" parent="RockWallHigh"]
+shape = SubResource("WallHighShape")
+
+[node name="LaunchRock" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -72, 35.6, -28)
+
+[node name="Mesh" type="MeshInstance3D" parent="LaunchRock"]
+mesh = SubResource("LaunchMesh")
+surface_material_override/0 = SubResource("RuinMat")
+
+[node name="Shape" type="CollisionShape3D" parent="LaunchRock"]
+shape = SubResource("LaunchShape")
+
+[node name="OutpostN" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 95, 8.9, 51)
+
+[node name="Mesh" type="MeshInstance3D" parent="OutpostN"]
+mesh = SubResource("OutWallMesh")
+surface_material_override/0 = SubResource("RuinMat")
+
+[node name="Shape" type="CollisionShape3D" parent="OutpostN"]
+shape = SubResource("OutWallShape")
+
+[node name="OutpostE" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 104, 8.9, 60)
+
+[node name="Mesh" type="MeshInstance3D" parent="OutpostE"]
+mesh = SubResource("OutSideMesh")
+surface_material_override/0 = SubResource("RuinMat")
+
+[node name="Shape" type="CollisionShape3D" parent="OutpostE"]
+shape = SubResource("OutSideShape")
+
+[node name="OutpostW" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 86, 8.9, 60)
+
+[node name="Mesh" type="MeshInstance3D" parent="OutpostW"]
+mesh = SubResource("OutSideMesh")
+surface_material_override/0 = SubResource("RuinMat")
+
+[node name="Shape" type="CollisionShape3D" parent="OutpostW"]
+shape = SubResource("OutSideShape")
+
+[node name="House1" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 4.65, 88)
+
+[node name="Mesh" type="MeshInstance3D" parent="House1"]
+mesh = SubResource("HouseMesh")
+surface_material_override/0 = SubResource("WallWhite")
+
+[node name="Roof" type="MeshInstance3D" parent="House1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.75, 0)
+mesh = SubResource("RoofMesh")
+surface_material_override/0 = SubResource("RoofOrange")
+
+[node name="Shape" type="CollisionShape3D" parent="House1"]
+shape = SubResource("HouseShape")
+
+[node name="House2" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 4.65, 92)
+
+[node name="Mesh" type="MeshInstance3D" parent="House2"]
+mesh = SubResource("HouseMesh")
+surface_material_override/0 = SubResource("WallWhite")
+
+[node name="Roof" type="MeshInstance3D" parent="House2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.75, 0)
+mesh = SubResource("RoofMesh")
+surface_material_override/0 = SubResource("RoofOrange")
+
+[node name="Shape" type="CollisionShape3D" parent="House2"]
+shape = SubResource("HouseShape")
+
+[node name="House3" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 4.65, 108)
+
+[node name="Mesh" type="MeshInstance3D" parent="House3"]
+mesh = SubResource("HouseMesh")
+surface_material_override/0 = SubResource("WallWhite")
+
+[node name="Roof" type="MeshInstance3D" parent="House3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.75, 0)
+mesh = SubResource("RoofMesh")
+surface_material_override/0 = SubResource("RoofOrange")
+
+[node name="Shape" type="CollisionShape3D" parent="House3"]
+shape = SubResource("HouseShape")
+
+[node name="House4" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 4.65, 110)
+
+[node name="Mesh" type="MeshInstance3D" parent="House4"]
+mesh = SubResource("HouseMesh")
+surface_material_override/0 = SubResource("WallWhite")
+
+[node name="Roof" type="MeshInstance3D" parent="House4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.75, 0)
+mesh = SubResource("RoofMesh")
+surface_material_override/0 = SubResource("RoofOrange")
+
+[node name="Shape" type="CollisionShape3D" parent="House4"]
+shape = SubResource("HouseShape")
+
+[node name="House5" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 4.65, 99)
+
+[node name="Mesh" type="MeshInstance3D" parent="House5"]
+mesh = SubResource("HouseMesh")
+surface_material_override/0 = SubResource("WallWhite")
+
+[node name="Roof" type="MeshInstance3D" parent="House5"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.75, 0)
+mesh = SubResource("RoofMesh")
+surface_material_override/0 = SubResource("RoofOrange")
+
+[node name="Shape" type="CollisionShape3D" parent="House5"]
+shape = SubResource("HouseShape")
+
+[node name="House6" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 4.65, 101)
+
+[node name="Mesh" type="MeshInstance3D" parent="House6"]
+mesh = SubResource("HouseMesh")
+surface_material_override/0 = SubResource("WallWhite")
+
+[node name="Roof" type="MeshInstance3D" parent="House6"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.75, 0)
+mesh = SubResource("RoofMesh")
+surface_material_override/0 = SubResource("RoofOrange")
+
+[node name="Shape" type="CollisionShape3D" parent="House6"]
+shape = SubResource("HouseShape")
+
+[node name="Well" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4, 92)
+
+[node name="Mesh" type="MeshInstance3D" parent="Well"]
+mesh = SubResource("WellMesh")
+surface_material_override/0 = SubResource("RuinMat")
+
+[node name="Shape" type="CollisionShape3D" parent="Well"]
+shape = SubResource("WellShape")
+
+[node name="Aqueduct" type="Node3D" parent="."]
+script = ExtResource("aqueduct")
+points = PackedVector3Array(20, 14.5, 47, 20, 10, 62, 12, 6, 78, 3, 4.2, 89)
+
+[node name="OutpostBlade1" parent="." instance=ExtResource("blade")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 90, 8, 56)
+
+[node name="OutpostBlade2" parent="." instance=ExtResource("blade")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 8, 64)
+
+[node name="OutpostCannon" parent="." instance=ExtResource("cannon")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 95, 8, 55)
+
 [node name="Sluice1" parent="." instance=ExtResource("sluice")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 34.2, -100)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 48, -90)
 
 [node name="Sluice2" parent="." instance=ExtResource("sluice")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -125, 18.8, -20)

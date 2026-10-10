@@ -133,3 +133,16 @@ func test_ledge_hop_missed_can_regrab_when_falling_fast():
 	l.velocity.y = -13.0
 	l.step(_intent(Vector2(0, 1)), wall, DT)
 	assert_eq(l.state, Locomotion.State.CLIMBING, "단을 놓쳐 크게 떨어지면 다시 잡을 수 있음")
+
+func test_steep_slope_head_on_starts_climb():           # 지형 경사(70°) 정면으로 밀면 등반
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.GROUNDED
+	var slope := {"on_floor": true, "wall_normal": Vector3(0, 0.342, 0.94), "ledge_top": false}
+	l.step(_intent(Vector2(0, 1)), slope, DT)
+	assert_eq(l.state, Locomotion.State.CLIMBING)
+
+func test_climbing_slope_follows_surface():              # 경사면 등반은 면을 따라 위로 (면에서 떨어지지 않음)
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
+	var slope := {"on_floor": false, "wall_normal": Vector3(0, 0.342, 0.94), "ledge_top": false}
+	var v := l.step(_intent(Vector2(0, 1)), slope, DT)
+	assert_true(v.y > 0.0)
+	assert_true(v.dot(Vector3(0, 0.342, 0.94)) <= 0.0, "면에서 멀어지지 않음 (속도·법선 ≤ 0): %s" % v)
