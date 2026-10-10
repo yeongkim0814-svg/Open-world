@@ -4,6 +4,7 @@ extends CharacterBody3D
 
 const GROUND_STICK_SPEED := 1.0     ## 지상에서 바닥에 붙어 있도록 주는 하향 속도
 const TURN_SPEED := 12.0
+const SAFE_GROUND_RADIUS := 3.0   ## 안전 지점 판정: 이 거리 사방에 바닥이 있어야 함
 
 @export var tuning: MovementTuning = preload("res://resources/movement_tuning.tres")
 @export var touch_controls: TouchControls
@@ -13,6 +14,7 @@ var locomotion: Locomotion
 var respawn: RespawnTracker
 
 var _intent := InputIntent.new()
+var _await_stick_release := false   ## 재시작 직후: 스틱을 한 번 놓을 때까지 이동 무시
 
 @onready var _facing: Node3D = $Facing
 @onready var _wall_ray: RayCast3D = $Facing/WallRay
@@ -37,6 +39,12 @@ func _physics_process(delta: float) -> void:
 	if touch_controls:
 		_camera.apply_drag(touch_controls.consume_camera_drag())
 	_intent.camera_yaw = _camera.yaw
+	if _await_stick_release:
+		if _intent.move.is_zero_approx():
+			_await_stick_release = false
+		else:
+			_intent.move = Vector2.ZERO
+			_intent.sprint = false
 
 	var v := locomotion.step(_intent, _sense(), delta)
 	velocity = v
@@ -44,7 +52,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = -GROUND_STICK_SPEED
 	move_and_slide()
 	stamina.tick(delta)
-	if respawn.update(global_position, is_on_floor(), delta):
+	if respawn.update(global_position, is_on_floor(), _on_stable_ground(), delta):
 		_respawn()
 	_update_facing(delta)
 
@@ -80,5 +88,20 @@ func _respawn() -> void:
 	velocity = Vector3.ZERO
 	locomotion.velocity = Vector3.ZERO
 	locomotion.state = Locomotion.State.AIRBORNE
+	_await_stick_release = true
 	reset_physics_interpolation()
 	_camera.reset_physics_interpolation()
+
+
+## 발밑 기준 사방 SAFE_GROUND_RADIUS 지점 아래에 바닥이 있는지.
+func _on_stable_ground() -> bool:
+	if not is_on_floor():
+		return false
+	var space := get_world_3d().direct_space_state
+	for dir in [Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]:
+		var from: Vector3 = global_position + dir * SAFE_GROUND_RADIUS + Vector3.UP
+		var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 3.0)
+		query.exclude = [get_rid()]
+		if space.intersect_ray(query).is_empty():
+			return false
+	return true
