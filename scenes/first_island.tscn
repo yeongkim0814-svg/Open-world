@@ -8,6 +8,8 @@
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="player"]
 [ext_resource type="PackedScene" path="res://scenes/touch_controls.tscn" id="touch"]
 [ext_resource type="Script" path="res://scripts/nodes/debug_hud.gd" id="hud"]
+[ext_resource type="Script" path="res://scripts/nodes/lake.gd" id="lake"]
+[ext_resource type="PackedScene" path="res://scenes/sluice.tscn" id="sluice"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
 sky_top_color = Color(0.5, 0.52, 0.55, 1)
@@ -33,6 +35,47 @@ fog_height_density = 0.04
 shader = ExtResource("vshader")
 shader_parameter/albedo = Color(0.25, 0.65, 0.71, 1)
 shader_parameter/roughness_value = 0.3
+
+[sub_resource type="ShaderMaterial" id="LakeMat"]
+shader = ExtResource("vshader")
+shader_parameter/albedo = Color(0.16, 0.42, 0.5, 1)
+shader_parameter/roughness_value = 0.2
+
+[sub_resource type="CylinderMesh" id="LakeMesh"]
+top_radius = 46.0
+bottom_radius = 46.0
+height = 0.05
+radial_segments = 48
+
+[sub_resource type="ShaderMaterial" id="StoneMat"]
+shader = ExtResource("vshader")
+shader_parameter/albedo = Color(0.6, 0.55, 0.48, 1)
+
+[sub_resource type="BoxMesh" id="CausewayMesh"]
+size = Vector3(4, 7.2, 36)
+
+[sub_resource type="BoxShape3D" id="CausewayShape"]
+size = Vector3(4, 7.2, 36)
+
+[sub_resource type="CylinderMesh" id="Pillar1Mesh"]
+top_radius = 2.5
+bottom_radius = 2.8
+height = 15.0
+radial_segments = 8
+
+[sub_resource type="CylinderShape3D" id="Pillar1Shape"]
+radius = 2.6
+height = 15.0
+
+[sub_resource type="CylinderMesh" id="Pillar2Mesh"]
+top_radius = 2.5
+bottom_radius = 2.8
+height = 11.1
+radial_segments = 8
+
+[sub_resource type="CylinderShape3D" id="Pillar2Shape"]
+radius = 2.6
+height = 11.1
 
 [sub_resource type="PlaneMesh" id="SeaMesh"]
 size = Vector2(2000, 2000)
@@ -60,6 +103,55 @@ surface_material_override/0 = SubResource("SeaMat")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -20, 0)
 script = ExtResource("water")
 size = Vector3(2000, 40, 2000)
+
+[node name="Lake" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -10)
+script = ExtResource("lake")
+
+[node name="Surface" type="MeshInstance3D" parent="Lake"]
+mesh = SubResource("LakeMesh")
+surface_material_override/0 = SubResource("LakeMat")
+
+[node name="Causeway" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.4, 17)
+
+[node name="Mesh" type="MeshInstance3D" parent="Causeway"]
+mesh = SubResource("CausewayMesh")
+surface_material_override/0 = SubResource("StoneMat")
+
+[node name="Shape" type="CollisionShape3D" parent="Causeway"]
+shape = SubResource("CausewayShape")
+
+[node name="Pillar1" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 3.5, 24)
+
+[node name="Mesh" type="MeshInstance3D" parent="Pillar1"]
+mesh = SubResource("Pillar1Mesh")
+surface_material_override/0 = SubResource("StoneMat")
+
+[node name="Shape" type="CollisionShape3D" parent="Pillar1"]
+shape = SubResource("Pillar1Shape")
+
+[node name="Pillar2" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 1.55, 10)
+
+[node name="Mesh" type="MeshInstance3D" parent="Pillar2"]
+mesh = SubResource("Pillar2Mesh")
+surface_material_override/0 = SubResource("StoneMat")
+
+[node name="Shape" type="CollisionShape3D" parent="Pillar2"]
+shape = SubResource("Pillar2Shape")
+
+[node name="Sluice1" parent="." instance=ExtResource("sluice")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 34.2, -100)
+
+[node name="Sluice2" parent="." instance=ExtResource("sluice")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -125, 18.8, -20)
+index = 1
+
+[node name="Sluice3" parent="." instance=ExtResource("sluice")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 95, 7.8, 60)
+index = 2
 
 [node name="Player" parent="." node_paths=PackedStringArray("touch_controls") instance=ExtResource("player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, 100)

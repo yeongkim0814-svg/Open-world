@@ -41,4 +41,7 @@ func _process(delta: float) -> void:
 		var d := a.durability()
 		lines.append("%s %d/%d%s" % [a.current().display_name, ceili(d.value), roundi(d.max_value), " (파손)" if d.is_broken() else ""])
 		lines.append("HP %d  부품 %d  %s  %s" % [roundi(player.combat.hp), player.parts, "⚔전투" if player.combat.state.active else "", player.combat.last_result])
+	var world := get_tree().get_first_node_in_group("world")
+	if world:
+		lines.append(world.status_text())
 	text = "\n".join(lines)

@@ -1,0 +1,59 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/nodes/sluice.gd" id="1"]
+[ext_resource type="Shader" path="res://shaders/vitality.gdshader" id="2"]
+
+[sub_resource type="ShaderMaterial" id="Metal"]
+shader = ExtResource("2")
+shader_parameter/albedo = Color(0.42, 0.45, 0.5, 1)
+
+[sub_resource type="ShaderMaterial" id="Core"]
+shader = ExtResource("2")
+shader_parameter/albedo = Color(0.3, 0.9, 1, 1)
+shader_parameter/keep_color = true
+
+[sub_resource type="BoxMesh" id="PillarMesh"]
+size = Vector3(1.2, 5, 1.2)
+
+[sub_resource type="BoxMesh" id="LintelMesh"]
+size = Vector3(5.2, 1, 1.4)
+
+[sub_resource type="BoxMesh" id="GateMesh"]
+size = Vector3(2.8, 3, 0.4)
+
+[sub_resource type="BoxShape3D" id="FrameShape"]
+size = Vector3(5.2, 5, 1.4)
+
+[node name="Sluice" type="Node3D"]
+script = ExtResource("1")
+
+[node name="PillarL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 2.5, 0)
+mesh = SubResource("PillarMesh")
+surface_material_override/0 = SubResource("Metal")
+
+[node name="PillarR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 2.5, 0)
+mesh = SubResource("PillarMesh")
+surface_material_override/0 = SubResource("Metal")
+
+[node name="Lintel" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.5, 0)
+mesh = SubResource("LintelMesh")
+surface_material_override/0 = SubResource("Metal")
+
+[node name="Gate" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+mesh = SubResource("GateMesh")
+surface_material_override/0 = SubResource("Metal")
+
+[node name="Lamp" type="MeshInstance3D" parent="Gate"]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 1, 0.25)
+mesh = SubResource("PillarMesh")
+surface_material_override/0 = SubResource("Core")
+
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, -1.2)
+shape = SubResource("FrameShape")
