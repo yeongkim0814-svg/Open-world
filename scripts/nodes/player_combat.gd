@@ -1,15 +1,11 @@
 class_name PlayerCombat
 extends Node
-## 플레이어 전투: 체력, 공격(3단 콤보·강공격·자동 조준), 방어/패링, 적 공격 판정 처리.
+## 플레이어 전투: 체력, 무기(근접·활·교체·내구도), 공격(3단 콤보·강공격·자동 조준), 방어/패링, 적 공격 판정 처리.
 ## Player가 매 물리 틱 tick()을 호출한다.
 
 signal died
 
 const ENEMY_DAMAGE_STUN := 1.0      ## 가드 브레이크 경직 (s)
-const ATTACK_REACH := 1.8           ## 공격 판정 거리 (m)
-const ATTACK_ARC_DEG := 120.0       ## 공격 판정 정면 각 (전체)
-const LIGHT_COOLDOWN := 0.35
-const HEAVY_COOLDOWN := 0.7
 const FLURRY_COOLDOWN := 0.12       ## 슬로우모션 연타 중 공격 간격
 const WEAPON_BLOCK_LEAK := 0.3      ## 방패 없이 무기로 막으면 피해의 30%가 들어옴 (3.3)
 
@@ -20,6 +16,7 @@ var hp: float
 var guard: Guard
 var flurry: Flurry
 var state: CombatState
+var arsenal: Arsenal
 var last_result := ""               ## HUD 표시용: 패링! / 막기 / 가드 브레이크 / 피격 / 회피
 var engaged_this_tick := false
 
@@ -36,6 +33,12 @@ func setup(player: Player) -> void:
 	guard = Guard.new(combat_tuning)
 	flurry = Flurry.new(combat_tuning)
 	state = CombatState.new(combat_tuning)
+	var weapons: Array[WeaponData] = [
+		preload("res://resources/weapons/sword.tres"),
+		preload("res://resources/weapons/greatsword.tres"),
+		preload("res://resources/weapons/bow.tres"),
+	]
+	arsenal = Arsenal.new(weapons)
 
 
 func is_stunned() -> bool:
@@ -66,12 +69,32 @@ func tick(intent: InputIntent, delta: float) -> void:
 		guard.press()
 	if not intent.guard_held and guard.holding:
 		guard.release()
+	if intent.switch_weapon_pressed:
+		switch_weapon()
 	if is_stunned() or _cooldown > 0.0:
 		return
+	var w := arsenal.current()
+	if w.kind != WeaponData.Kind.MELEE:
+		return
 	if intent.heavy_released:
-		_swing(combat_tuning.heavy_damage, HEAVY_COOLDOWN)
+		_swing(w, true, w.heavy_cooldown)
 	elif intent.attack_pressed:
-		_swing(combat_tuning.attack_damage, FLURRY_COOLDOWN if flurry.active else LIGHT_COOLDOWN)
+		_swing(w, false, FLURRY_COOLDOWN if flurry.active else w.light_cooldown)
+
+
+## 다음 무기로 교체. 콤보는 처음부터.
+func switch_weapon() -> void:
+	arsenal.cycle()
+	_combo_step = 0
+	_combo_timer = 0.0
+
+
+## 근접 무기 한 번의 피해. 파손이면 broken_damage_mult, 대검 강공격은 적의 공격을 끊는다.
+func melee_hit(weapon: WeaponData, heavy: bool) -> Hit:
+	var dmg := weapon.heavy_damage if heavy else weapon.damage
+	if arsenal.durability().is_broken():
+		dmg *= combat_tuning.broken_damage_mult
+	return Hit.make(dmg, weapon.armor_pierce, heavy and weapon.heavy_staggers)
 
 
 ## 적 공격이 맞는 순간 TrainingDummy가 호출.
@@ -86,12 +109,15 @@ func on_enemy_hit(attack: EnemyAttack, enemy: Node3D, damage: float) -> void:
 		Guard.Result.PARRIED:
 			last_result = "패링!"
 			flurry.start()
-			if enemy.has_method("stagger"):
-				enemy.stagger()
+			if not has_shield:
+				arsenal.durability().wear(combat_tuning.wear_parry)
+			if enemy.has_method("on_parried"):
+				enemy.on_parried()
 		Guard.Result.BLOCKED:
 			last_result = "막기"
 			stamina.spend(combat_tuning.guard_cost)
 			if not has_shield:
+				arsenal.durability().wear(combat_tuning.wear_block)
 				_take_damage(damage * WEAPON_BLOCK_LEAK)
 		Guard.Result.GUARD_BREAK:
 			last_result = "가드 브레이크"
@@ -109,7 +135,7 @@ func _take_damage(amount: float) -> void:
 
 
 ## 휘두르기: 적이 없어도 동작한다. 자동 조준 대상이 있으면 그쪽으로 즉시 돌아선다.
-func _swing(damage: float, cooldown: float) -> void:
+func _swing(weapon: WeaponData, heavy: bool, cooldown: float) -> void:
 	engaged_this_tick = true
 	_cooldown = cooldown
 	_combo_step = (_combo_step % 3) + 1
@@ -122,13 +148,18 @@ func _swing(damage: float, cooldown: float) -> void:
 	var target := Targeting.pick(origin, _player.facing_forward(), positions, combat_tuning.target_range, combat_tuning.target_cone_deg)
 	if target != -1:
 		_player.face_toward(positions[target])
-	_player.play_swing(_combo_step, damage > combat_tuning.attack_damage)
+	_player.play_swing(_combo_step, heavy)
 	var fwd := _player.facing_forward()
+	var hit := melee_hit(weapon, heavy)
+	var landed := false
 	for e in enemies:
 		var to: Vector3 = e.global_position - origin
 		to.y = 0.0
-		if to.length() <= ATTACK_REACH and fwd.angle_to(to) <= deg_to_rad(ATTACK_ARC_DEG) * 0.5:
-			e.take_hit(damage)
+		if to.length() <= weapon.reach and fwd.angle_to(to) <= deg_to_rad(weapon.arc_deg) * 0.5:
+			e.take_hit(hit)
+			landed = true
+	if landed:          # 허공 휘두르기는 닳지 않는다
+		arsenal.durability().wear(combat_tuning.wear_hit)
 
 
 func _alive_enemies() -> Array:

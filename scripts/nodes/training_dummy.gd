@@ -58,10 +58,13 @@ func is_threatening() -> bool:
 	return is_alive() and attack.is_threatening()
 
 
-func take_hit(amount: float) -> void:
+func take_hit(hit: Hit) -> void:
 	if not is_alive():
 		return
-	hp -= amount
+	hp -= hit.amount_against(1.0, combat_tuning.weak_point_mult)
+	if hit.stagger:
+		attack.cancel()
+		_stagger = maxf(_stagger, combat_tuning.hit_stagger_time)
 	_hit_flash = 0.15
 	if hp <= 0.0:
 		attack.cancel()
@@ -69,7 +72,7 @@ func take_hit(amount: float) -> void:
 
 
 ## 패링당함: 공격 취소, 1초 경직, 이 개체만 슬로우모션.
-func stagger() -> void:
+func on_parried() -> void:
 	attack.cancel()
 	_stagger = 1.0
 	_slow.start()

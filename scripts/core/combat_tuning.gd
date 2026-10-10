@@ -32,9 +32,7 @@ extends Resource
 @export_group("공격")
 @export var target_range := 6.0
 @export var target_cone_deg := 120.0
-@export var attack_damage := 10.0
 @export var heavy_hold_time := 0.4
-@export var heavy_damage := 25.0
 @export var combo_window := 0.6
 @export var player_max_hp := 100.0
 

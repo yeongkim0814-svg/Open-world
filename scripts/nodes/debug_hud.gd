@@ -37,5 +37,8 @@ func _process(delta: float) -> void:
 		lines.append("state %s" % STATE_NAMES[player.locomotion.state])
 		lines.append("stamina %d%s" % [roundi(player.stamina.value), " (탈진)" if player.stamina.exhausted else ""])
 	if player and player.combat and player.combat.state:
+		var a: Arsenal = player.combat.arsenal
+		var d := a.durability()
+		lines.append("%s %d/%d%s" % [a.current().display_name, ceili(d.value), roundi(d.max_value), " (파손)" if d.is_broken() else ""])
 		lines.append("HP %d  부품 %d  %s  %s" % [roundi(player.combat.hp), player.parts, "⚔전투" if player.combat.state.active else "", player.combat.last_result])
 	text = "\n".join(lines)

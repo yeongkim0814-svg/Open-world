@@ -178,6 +178,7 @@ func _update_combat_context(delta: float) -> void:
 	_intent.facing_yaw = _camera.yaw     # 회피 방향은 카메라 기준
 	if touch_controls:
 		touch_controls.set_threatened(threatened)
+		touch_controls.set_weapon_label(combat.arsenal.current().display_name)
 
 
 func facing_forward() -> Vector3:

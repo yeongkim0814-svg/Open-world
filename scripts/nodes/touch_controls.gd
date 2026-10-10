@@ -9,6 +9,7 @@ signal intent_updated(intent: InputIntent)
 const STICK_AREA_RATIO := 0.4
 const BUTTON_RADIUS := 64.0
 const STICK_RADIUS := 120.0
+const WEAPON_BUTTON_RADIUS := 48.0
 
 var _stick := VirtualStick.new(STICK_RADIUS)
 var _camera_touches := {}            ## index -> 마지막 위치
@@ -23,6 +24,8 @@ var _guard_queued := false
 var _key_attack_hold := -1.0
 var _interact_label := ""            ## 비어 있으면 팝업 숨김
 var _interact_queued := false
+var _switch_queued := false
+var _weapon_label := ""
 
 
 func _ready() -> void:
@@ -42,6 +45,13 @@ func set_threatened(threatened: bool) -> void:
 func show_interact(label: String) -> void:
 	if _interact_label != label:
 		_interact_label = label
+		queue_redraw()
+
+
+## 무기 교체 버튼에 장착 무기 이름 표시 (C17).
+func set_weapon_label(label: String) -> void:
+	if _weapon_label != label:
+		_weapon_label = label
 		queue_redraw()
 
 
@@ -72,7 +82,12 @@ func _buttons() -> Dictionary:
 		"jump": Vector2(s.x - 110, s.y - 330),
 		"attack": Vector2(s.x - 110, s.y - 150),
 		"guard": Vector2(s.x - 270, s.y - 110),
+		"weapon": Vector2(s.x - 90, 90),
 	}
+
+
+func _radius(name: String) -> float:
+	return WEAPON_BUTTON_RADIUS if name == "weapon" else BUTTON_RADIUS
 
 
 func _input(event: InputEvent) -> void:
@@ -92,12 +107,13 @@ func _input(event: InputEvent) -> void:
 func _on_touch_down(index: int, pos: Vector2) -> void:
 	var buttons := _buttons()
 	for name in buttons:
-		if pos.distance_to(buttons[name]) <= BUTTON_RADIUS:
+		if pos.distance_to(buttons[name]) <= _radius(name):
 			_button_touches[index] = name
 			match name:
 				"jump": _jump_queued = true
 				"attack": _attack_hold = 0.0
 				"guard": _guard_queued = true
+				"weapon": _switch_queued = true
 			queue_redraw()
 			return
 	if not _interact_label.is_empty() and _interact_rect().has_point(pos):
@@ -143,6 +159,9 @@ func _physics_process(delta: float) -> void:
 	intent.attack_pressed = _attack_release_queued == 1
 	intent.heavy_released = _attack_release_queued == 2
 	_attack_release_queued = 0
+	intent.attack_held = _attack_hold >= 0.0 or _key_attack_hold >= 0.0
+	intent.switch_weapon_pressed = _switch_queued or Input.is_action_just_pressed("switch_weapon")
+	_switch_queued = false
 	intent.guard_pressed = _guard_queued or Input.is_action_just_pressed("guard")
 	intent.guard_held = _button_touches.values().has("guard") or Input.is_action_pressed("guard")
 	_guard_queued = false
@@ -177,10 +196,11 @@ func _draw() -> void:
 	for name in buttons:
 		var alpha: float = 0.6 if held.has(name) else 0.35
 		var tint := Color(1, 0.85, 0.3, alpha) if name == "jump" and _threatened else Color(1, 1, 1, alpha)
-		draw_circle(buttons[name], BUTTON_RADIUS, tint)
+		draw_circle(buttons[name], _radius(name), tint)
 	draw_string(font, buttons["jump"] + Vector2(-24, 8), "회피" if _threatened else "점프", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 	draw_string(font, buttons["attack"] + Vector2(-24, 8), "공격", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 	draw_string(font, buttons["guard"] + Vector2(-24, 8), "방어", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
+	draw_string(font, buttons["weapon"] + Vector2(-40, 8), _weapon_label, HORIZONTAL_ALIGNMENT_CENTER, 80, 20)
 	if not _interact_label.is_empty():
 		var r := _interact_rect()
 		draw_rect(r, Color(0.1, 0.1, 0.1, 0.6))
@@ -191,7 +211,7 @@ func _draw() -> void:
 func _ensure_actions() -> void:
 	var keys := {
 		"move_left": KEY_A, "move_right": KEY_D, "move_forward": KEY_W, "move_back": KEY_S,
-		"jump": KEY_SPACE, "walk": KEY_CTRL, "attack": KEY_J, "guard": KEY_K, "interact": KEY_E,
+		"jump": KEY_SPACE, "walk": KEY_CTRL, "attack": KEY_J, "guard": KEY_K, "interact": KEY_E, "switch_weapon": KEY_Q,
 	}
 	for action in keys:
 		if InputMap.has_action(action):
