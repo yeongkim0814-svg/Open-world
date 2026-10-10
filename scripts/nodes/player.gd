@@ -21,6 +21,11 @@ var _await_stick_release := false   ## 재시작 직후: 스틱을 한 번 놓�
 @onready var _wall_ray: RayCast3D = $Probe/WallRay
 @onready var _head_ray: RayCast3D = $Probe/HeadRay
 @onready var _camera: OrbitCamera = $OrbitCamera
+@onready var combat: PlayerCombat = $PlayerCombat
+@onready var _sword: Node3D = $Facing/SwordPivot
+
+const THREAT_RANGE := 6.0          ## 이 거리 안의 적이 공격 중이면 회피 문맥 (C16)
+var _swing_tween: Tween
 
 
 func _ready() -> void:
@@ -28,6 +33,9 @@ func _ready() -> void:
 	locomotion = Locomotion.new(tuning, stamina)
 	respawn = RespawnTracker.new(tuning.fall_respawn_y)
 	respawn.safe_point = global_position
+	add_to_group("player")
+	combat.setup(self)
+	combat.died.connect(_on_died)
 	if touch_controls:
 		touch_controls.intent_updated.connect(set_intent)
 
@@ -45,6 +53,11 @@ func _physics_process(delta: float) -> void:
 			_await_stick_release = false
 		else:
 			_intent.move = Vector2.ZERO
+	_update_combat_context(delta)
+	if combat.is_stunned():
+		_intent.move = Vector2.ZERO
+		_intent.jump_pressed = false
+		_intent.auto_run = false
 
 	_aim_probe()
 	var v := locomotion.step(_intent, _sense(), delta)
@@ -74,8 +87,10 @@ func _sense() -> Dictionary:
 	}
 
 
-## 바라보기 규칙: 등반 = 벽 / 활공 = 이동 방향 / 그 외는 Locomotion.turns_to_move (걷기·시점 조작 중엔 유지).
+## 바라보기 규칙: 회피 = 고정 / 등반 = 벽 / 활공 = 이동 방향 / 그 외는 Locomotion.turns_to_move.
 func _update_facing(delta: float) -> void:
+	if locomotion.state == Locomotion.State.DODGING:
+		return
 	var look := Vector3.ZERO
 	if locomotion.state == Locomotion.State.CLIMBING:
 		if _wall_ray.is_colliding():
@@ -102,6 +117,7 @@ func _respawn() -> void:
 	locomotion.velocity = Vector3.ZERO
 	locomotion.state = Locomotion.State.AIRBORNE
 	_await_stick_release = true
+	combat.reset_hp()
 	if touch_controls:
 		touch_controls.cancel_auto_run()
 	reset_physics_interpolation()
@@ -120,3 +136,56 @@ func _on_stable_ground() -> bool:
 		if space.intersect_ray(query).is_empty():
 			return false
 	return true
+
+
+## 전투 상태·위협 여부를 갱신하고 InputIntent에 채운다. 전투 중이면 카메라를 등 뒤로 정렬 (C14).
+func _update_combat_context(delta: float) -> void:
+	var nearest := INF
+	var threatened := false
+	for e in get_tree().get_nodes_in_group("enemy"):
+		var d: float = global_position.distance_to(e.global_position)
+		if e.is_alerted():
+			nearest = minf(nearest, d)
+		if d <= THREAT_RANGE and e.is_threatening():
+			threatened = true
+	combat.tick(_intent, delta)
+	var was_in_combat := combat.state.active
+	_intent.in_combat = combat.state.update(nearest, combat.engaged_this_tick, delta)
+	_intent.threatened = threatened
+	_intent.facing_yaw = _facing.rotation.y
+	if touch_controls:
+		touch_controls.set_threatened(threatened)
+		if _intent.in_combat and not was_in_combat:
+			touch_controls.cancel_auto_run()
+	if _intent.in_combat:
+		_intent.auto_run = false
+		_camera.follow(_facing.rotation.y, delta, _intent.camera_held, locomotion.state == Locomotion.State.DODGING)
+
+
+func facing_forward() -> Vector3:
+	return Vector3.FORWARD.rotated(Vector3.UP, _facing.rotation.y)
+
+
+func face_toward(point: Vector3) -> void:
+	var to := point - global_position
+	if Vector2(to.x, to.z).length() > 0.01:
+		_facing.rotation.y = atan2(-to.x, -to.z)
+
+
+## 검 휘두르기 연출 (콤보 단계마다 방향을 바꿔 좌우로 벤다). 강공격은 위에서 아래로.
+func play_swing(step: int, heavy: bool) -> void:
+	if _swing_tween:
+		_swing_tween.kill()
+	_swing_tween = create_tween()
+	if heavy:
+		_sword.rotation = Vector3(deg_to_rad(80), 0, 0)
+		_swing_tween.tween_property(_sword, "rotation", Vector3(deg_to_rad(-70), 0, 0), 0.25)
+	else:
+		var from := -70.0 if step % 2 == 1 else 70.0
+		_sword.rotation = Vector3(0, deg_to_rad(from), 0)
+		_swing_tween.tween_property(_sword, "rotation", Vector3(0, deg_to_rad(-from), 0), 0.15)
+	_swing_tween.tween_property(_sword, "rotation", Vector3.ZERO, 0.15)
+
+
+func _on_died() -> void:
+	_respawn()

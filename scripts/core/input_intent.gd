@@ -10,4 +10,8 @@ var jump_held := false
 var in_combat := false          ## 전투 상태 (걷기도 이동 방향으로 회전)
 var threatened := false         ## 근처 적이 공격 중(예고~공격 끝) → 스틱+점프 = 회피
 var facing_yaw := 0.0           ## 캐릭터가 바라보는 방향 (회피 종류 판정용)
+var attack_pressed := false     ## 공격 버튼 탭 (짧게 눌렀다 뗌)
+var heavy_released := false     ## 공격 버튼을 heavy_hold_time 이상 누르다 뗌 → 강공격
+var guard_pressed := false      ## 방어 버튼을 누른 순간 (패링 판정 시작)
+var guard_held := false         ## 방어 버튼을 누르고 있음 (방어 자세)
 var camera_yaw := 0.0           ## 라디안. 이동 방향을 카메라 기준으로 돌릴 때 사용

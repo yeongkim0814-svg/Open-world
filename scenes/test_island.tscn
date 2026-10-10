@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" path="res://scenes/touch_controls.tscn" id="touch"]
 
 [ext_resource type="Script" path="res://scripts/nodes/debug_hud.gd" id="hud"]
+[ext_resource type="PackedScene" path="res://scenes/training_dummy.tscn" id="dummy"]
 
 [sub_resource type="BoxMesh" id="Mesh1"]
 size = Vector3(20, 5, 10)
@@ -206,6 +207,12 @@ shape = SubResource("TowerShape")
 [node name="Player" parent="." node_paths=PackedStringArray("touch_controls") instance=ExtResource("player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 60)
 touch_controls = NodePath("../UI/TouchControls")
+
+[node name="Dummy1" parent="." instance=ExtResource("dummy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, 40)
+
+[node name="Dummy2" parent="." instance=ExtResource("dummy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0, 40)
 
 [node name="UI" type="CanvasLayer" parent="."]
 

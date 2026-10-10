@@ -16,7 +16,11 @@ var _camera_drag := Vector2.ZERO
 var _button_touches := {}            ## index -> 버튼 이름
 var _jump_queued := false
 var _auto_run := false
-var _combat := false
+var _threatened := false
+var _attack_hold := -1.0             ## 공격 버튼 누른 시간 (s), 안 누르면 -1
+var _attack_release_queued := 0      ## 0 없음 / 1 탭 / 2 강공격
+var _guard_queued := false
+var _key_attack_hold := -1.0
 
 
 func _ready() -> void:
@@ -25,10 +29,11 @@ func _ready() -> void:
 	_ensure_actions()
 
 
-## 전투 상태에 따라 점프 버튼 아이콘을 점프 ↔ 회피로 바꾼다 (M1에서는 항상 false).
-func set_context(combat: bool) -> void:
-	_combat = combat
-	queue_redraw()
+## 적이 공격 중일 때 점프 버튼 아이콘을 회피로 바꾼다 (C16).
+func set_threatened(threatened: bool) -> void:
+	if _threatened != threatened:
+		_threatened = threatened
+		queue_redraw()
 
 
 func cancel_auto_run() -> void:
@@ -71,8 +76,10 @@ func _on_touch_down(index: int, pos: Vector2) -> void:
 	for name in buttons:
 		if pos.distance_to(buttons[name]) <= BUTTON_RADIUS:
 			_button_touches[index] = name
-			if name == "jump":
-				_jump_queued = true
+			match name:
+				"jump": _jump_queued = true
+				"attack": _attack_hold = 0.0
+				"guard": _guard_queued = true
 			queue_redraw()
 			return
 	if pos.x < size.x * STICK_AREA_RATIO:
@@ -87,12 +94,36 @@ func _on_touch_up(index: int) -> void:
 	if _stick.release(index):
 		_auto_run = true
 	_camera_touches.erase(index)
+	if _button_touches.get(index) == "attack":
+		_attack_release_queued = _classify_attack(_attack_hold)
+		_attack_hold = -1.0
 	_button_touches.erase(index)
 	queue_redraw()
 
 
-func _physics_process(_delta: float) -> void:
+## 공격 버튼을 뗀 순간: heavy_hold_time 미만 = 탭(1), 이상 = 강공격(2).
+func _classify_attack(held: float) -> int:
+	return 2 if held >= preload("res://resources/combat_tuning.tres").heavy_hold_time else 1
+
+
+func _physics_process(delta: float) -> void:
 	var intent := InputIntent.new()
+	if _attack_hold >= 0.0:
+		_attack_hold += delta
+	# 키보드: J = 공격(길게 = 강공격), K = 방어
+	if Input.is_action_just_pressed("attack"):
+		_key_attack_hold = 0.0
+	elif _key_attack_hold >= 0.0:
+		_key_attack_hold += delta
+		if not Input.is_action_pressed("attack"):
+			_attack_release_queued = _classify_attack(_key_attack_hold)
+			_key_attack_hold = -1.0
+	intent.attack_pressed = _attack_release_queued == 1
+	intent.heavy_released = _attack_release_queued == 2
+	_attack_release_queued = 0
+	intent.guard_pressed = _guard_queued or Input.is_action_just_pressed("guard")
+	intent.guard_held = _button_touches.values().has("guard") or Input.is_action_pressed("guard")
+	_guard_queued = false
 	var key_move := Input.get_vector("move_left", "move_right", "move_back", "move_forward")
 	if Input.is_action_pressed("walk"):
 		key_move *= 0.5
@@ -120,17 +151,18 @@ func _draw() -> void:
 	var held := _button_touches.values()
 	var buttons := _buttons()
 	for name in buttons:
-		var active: bool = name == "jump"
-		var alpha: float = 0.15 if not active else (0.6 if held.has(name) else 0.35)
-		draw_circle(buttons[name], BUTTON_RADIUS, Color(1, 1, 1, alpha))
-	var label := "회피" if _combat else "점프"
-	draw_string(font, buttons["jump"] + Vector2(-24, 8), label, HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
+		var alpha: float = 0.6 if held.has(name) else 0.35
+		var tint := Color(1, 0.85, 0.3, alpha) if name == "jump" and _threatened else Color(1, 1, 1, alpha)
+		draw_circle(buttons[name], BUTTON_RADIUS, tint)
+	draw_string(font, buttons["jump"] + Vector2(-24, 8), "회피" if _threatened else "점프", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
+	draw_string(font, buttons["attack"] + Vector2(-24, 8), "공격", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
+	draw_string(font, buttons["guard"] + Vector2(-24, 8), "방어", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 
 
 func _ensure_actions() -> void:
 	var keys := {
 		"move_left": KEY_A, "move_right": KEY_D, "move_forward": KEY_W, "move_back": KEY_S,
-		"jump": KEY_SPACE, "walk": KEY_CTRL,
+		"jump": KEY_SPACE, "walk": KEY_CTRL, "attack": KEY_J, "guard": KEY_K,
 	}
 	for action in keys:
 		if InputMap.has_action(action):

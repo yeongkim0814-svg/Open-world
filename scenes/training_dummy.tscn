@@ -1,0 +1,46 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/nodes/training_dummy.gd" id="1"]
+
+[sub_resource type="CapsuleShape3D" id="Shape"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="BodyMesh"]
+radius = 0.4
+height = 1.4
+
+[sub_resource type="StandardMaterial3D" id="BodyMat"]
+resource_local_to_scene = true
+albedo_color = Color(0.55, 0.45, 0.35, 1)
+
+[sub_resource type="SphereMesh" id="HeadMesh"]
+radius = 0.28
+height = 0.56
+
+[sub_resource type="StandardMaterial3D" id="HeadMat"]
+resource_local_to_scene = true
+albedo_color = Color(0.3, 0.3, 0.3, 1)
+
+[node name="TrainingDummy" type="CharacterBody3D"]
+script = ExtResource("1")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("Shape")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+mesh = SubResource("BodyMesh")
+surface_material_override/0 = SubResource("BodyMat")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.65, 0)
+mesh = SubResource("HeadMesh")
+surface_material_override/0 = SubResource("HeadMat")
+
+[node name="HpLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3, 0)
+billboard = 1
+text = "100"
+font_size = 48
