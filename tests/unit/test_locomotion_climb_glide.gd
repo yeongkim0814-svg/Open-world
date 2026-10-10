@@ -146,3 +146,18 @@ func test_climbing_slope_follows_surface():              # 경사면 등반은 �
 	var v := l.step(_intent(Vector2(0, 1)), slope, DT)
 	assert_true(v.y > 0.0)
 	assert_true(v.dot(Vector3(0, 0.342, 0.94)) <= 0.0, "면에서 멀어지지 않음 (속도·법선 ≤ 0): %s" % v)
+
+func test_hop_then_glide_landing_clears_guard():          # 리뷰 Important 1: 활공 착지 후에도 벽을 잡을 수 있어야 함
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
+	_hop(l)
+	l.velocity.y = -1.0
+	l.step(_intent(Vector2.ZERO, true), air, DT)          # 떨어지며 점프 → 활공
+	assert_eq(l.state, Locomotion.State.GLIDING)
+	var floor_air := {"on_floor": true, "wall_normal": Vector3.ZERO, "ledge_top": false}
+	l.step(_intent(Vector2(0, 1)), floor_air, DT)         # 활공 중 착지
+	assert_eq(l.state, Locomotion.State.GROUNDED)
+	assert_false(l._hop_guard, "착지하면 올라서기 가드가 풀려야 함")
+	var into_wall := _intent(Vector2(0, 1))
+	for i in 60:                                           # 1초: 재등반 금지(0.5s)는 이미 풀린 뒤
+		l.step(into_wall, wall, DT)
+	assert_eq(l.state, Locomotion.State.CLIMBING, "착지 후 벽을 잡을 수 있어야 함 (가드가 남아 있으면 실패)")

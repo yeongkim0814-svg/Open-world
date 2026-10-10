@@ -217,6 +217,8 @@ func _glide_motion(intent: InputIntent, sense: Dictionary, delta: float) -> void
 	if sense.get("on_floor", false):
 		velocity.y = 0.0
 		state = State.GROUNDED
+		_hop_guard = false
+		_climb_jumping = false
 	elif not _stamina.drain(_t.glide_cost, delta):
 		state = State.AIRBORNE
 

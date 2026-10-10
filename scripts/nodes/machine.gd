@@ -8,6 +8,8 @@ const COLOR_UNPARRYABLE := Color(1.0, 0.15, 0.1)
 const TURN_SPEED := 5.0
 const GRAVITY := 20.0
 const PARRY_STAGGER := 1.0
+const EDGE_LOOK := 1.5              ## 이만큼 앞의 발밑을 확인
+const EDGE_MAX_DROP := 3.0          ## 이보다 깊은 낭떠러지면 멈춘다 (탑 섬·절벽에서 떨어지지 않게)
 const PROJECTILE_SCENE := preload("res://scenes/enemy_projectile.tscn")
 const PART_SCENE := preload("res://scenes/pickup_part.tscn")
 
@@ -142,10 +144,26 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
-## 공격 중(예고~회복)에는 멈춰 선다.
+## 공격 중(예고~회복)에는 멈춰 선다. 앞이 낭떠러지면 멈춘다.
 func _move_dir(mode: MachineBrain.Mode, p: Node3D) -> Vector3:
 	if attack.phase != EnemyAttack.Phase.IDLE:
 		return Vector3.ZERO
+	if not is_on_floor():
+		return Vector3.ZERO             # 공중(생성 직후·낙하 중)에는 수평으로 움직이지 않는다
+	var dir := _wanted_dir(mode, p)
+	if dir != Vector3.ZERO and not _ground_ahead(dir):
+		return Vector3.ZERO
+	return dir
+
+
+func _ground_ahead(dir: Vector3) -> bool:
+	var from := global_position + dir * EDGE_LOOK + Vector3.UP
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * (1.0 + EDGE_MAX_DROP))
+	query.exclude = [get_rid()]
+	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+
+func _wanted_dir(mode: MachineBrain.Mode, p: Node3D) -> Vector3:
 	match mode:
 		MachineBrain.Mode.CHASE:
 			return _flat(p.global_position - global_position).normalized()

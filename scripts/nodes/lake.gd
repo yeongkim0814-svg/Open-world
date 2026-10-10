@@ -2,9 +2,9 @@ class_name Lake
 extends Water
 ## 저수호 (설계서 4장). 원형 수면이 목표 수위로 천천히 움직인다. 노드 위치 = 호수 중심(xz), y는 무시.
 
-@export var radius := 45.5
+@export var radius := 48.0         ## 둑 안쪽 벽까지 (둑 꼭대기 16 > 최고 수위 14.6이라 둑 밖은 잠기지 않음)
 @export var base_level := 14.6
-@export var bottom_y := -4.0
+@export var bottom_y := -6.0       ## 분지 바닥(-4.24)보다 아래
 @export var move_speed := 1.0       ## m/s
 
 var level: float
