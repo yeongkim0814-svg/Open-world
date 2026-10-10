@@ -25,7 +25,14 @@ var _await_stick_release := false   ## 재시작 직후: 스틱을 한 번 놓�
 @onready var _sword: Node3D = $Facing/SwordPivot
 
 const THREAT_RANGE := 6.0          ## 이 거리 안의 적이 공격 중이면 회피 문맥 (C16)
+const CLIMB_CAMERA_RETURN_TIME := 0.3
+const CLIMB_CAMERA_RETURN_DEG_PER_SEC := 600.0
 var _swing_tween: Tween
+var _was_moving := false
+var _walk_aligning := false
+var _align_yaw := 0.0
+var _was_climbing := false
+var _camera_return := 0.0
 var parts := 0                     ## 주운 기계 부품 수 (M2)
 
 
@@ -60,6 +67,7 @@ func _physics_process(delta: float) -> void:
 		_intent.jump_pressed = false
 		_intent.auto_run = false
 
+	_track_walk_start()
 	_update_interaction()
 	_aim_probe()
 	var v := locomotion.step(_intent, _sense(), delta)
@@ -73,6 +81,7 @@ func _physics_process(delta: float) -> void:
 	if respawn.update(global_position, is_on_floor(), _on_stable_ground(), delta):
 		_respawn()
 	_update_facing(delta)
+	_update_camera(delta)
 
 
 func _sense() -> Dictionary:
@@ -89,20 +98,52 @@ func _sense() -> Dictionary:
 	}
 
 
-## 바라보기 규칙: 회피 = 고정 / 등반 = 벽 / 활공 = 이동 방향 / 그 외는 Locomotion.turns_to_move.
+## 바라보기 (ViewRule): 걷기 = 유지 (평상시 정지→걷기 시작 순간만 카메라 방향으로 맞춤),
+## 달리기 = 이동 방향, 등반 = 벽, 회피 = 고정, 활공 = 이동 방향.
 func _update_facing(delta: float) -> void:
-	if locomotion.state == Locomotion.State.DODGING:
-		return
 	var look := Vector3.ZERO
-	if locomotion.state == Locomotion.State.CLIMBING:
-		if _wall_ray.is_colliding():
-			look = -_wall_ray.get_collision_normal()
-	elif locomotion.state == Locomotion.State.GLIDING or Locomotion.turns_to_move(_intent, tuning):
-		look = Vector3(velocity.x, 0.0, velocity.z)
+	match ViewRule.facing(locomotion.state, _intent, tuning, _walk_aligning):
+		ViewRule.Facing.KEEP:
+			return
+		ViewRule.Facing.WALL:
+			if _wall_ray.is_colliding():
+				look = -_wall_ray.get_collision_normal()
+		ViewRule.Facing.MOVE:
+			look = Vector3(velocity.x, 0.0, velocity.z)
+		ViewRule.Facing.CAMERA:
+			look = Vector3.FORWARD.rotated(Vector3.UP, _align_yaw)
+			if absf(angle_difference(_facing.rotation.y, _align_yaw)) < deg_to_rad(3.0):
+				_walk_aligning = false
 	if look.length() < 0.1:
 		return
 	var target_yaw := atan2(-look.x, -look.z)
 	_facing.rotation.y = lerp_angle(_facing.rotation.y, target_yaw, minf(TURN_SPEED * delta, 1.0))
+
+
+## 카메라: 달리는 동안 등 뒤로 자동 정렬, 등반이 끝나면 한 번 복귀(0.3초), 그 외(걷기·정지·전투 걷기)는 자유.
+func _update_camera(delta: float) -> void:
+	var climbing := locomotion.state == Locomotion.State.CLIMBING
+	if _was_climbing and not climbing and not _intent.camera_held:
+		_camera_return = CLIMB_CAMERA_RETURN_TIME
+	_was_climbing = climbing
+	if _intent.camera_held:
+		_camera_return = 0.0
+	if _camera_return > 0.0:
+		_camera_return -= delta
+		_camera.yaw = CameraFollow.turn_toward(_camera.yaw, _facing.rotation.y, deg_to_rad(CLIMB_CAMERA_RETURN_DEG_PER_SEC) * delta)
+	elif ViewRule.camera_follows(locomotion.state, _intent, tuning):
+		_camera.follow(_facing.rotation.y, delta, _intent.camera_held, false)
+
+
+## 정지 상태에서 걷기를 시작하는 순간을 감지 (그때만 카메라 방향으로 몸을 맞춤).
+func _track_walk_start() -> void:
+	var moving := not _intent.move.is_zero_approx() or _intent.auto_run
+	if moving and not _was_moving:
+		_walk_aligning = true
+		_align_yaw = _camera.yaw
+	elif not moving:
+		_walk_aligning = false
+	_was_moving = moving
 
 
 ## 벽 감지 레이를 이동 방향으로 돌린다 (등반 중에는 벽 쪽 유지, 이동이 없으면 바라보는 방향).
@@ -161,10 +202,6 @@ func _update_combat_context(delta: float) -> void:
 			touch_controls.cancel_auto_run()
 	if _intent.in_combat:
 		_intent.auto_run = false
-		# 이동 중에는 정렬하지 않는다: 이동은 카메라 기준 → 캐릭터가 이동 방향으로 회전 → 카메라가 캐릭터를 따라감
-		# 이 세 규칙이 맞물리면 옆·뒤로 움직일 때 끝없이 회전한다. 멈추면 0.5초 뒤 등 뒤로 정렬.
-		var moving := not _intent.move.is_zero_approx()
-		_camera.follow(_facing.rotation.y, delta, _intent.camera_held or moving, locomotion.state == Locomotion.State.DODGING)
 
 
 func facing_forward() -> Vector3:

@@ -20,3 +20,7 @@ func test_takes_shortest_way_around():
 
 func test_does_not_overshoot():
 	assert_almost(CameraFollow.new(t).step(0.0, 0.1, 1.0, false, false), 0.1)
+
+func test_turn_toward_limits_step_for_climb_return():
+	assert_almost(CameraFollow.turn_toward(0.0, PI, deg_to_rad(90.0)), deg_to_rad(90.0))
+	assert_almost(CameraFollow.turn_toward(0.0, 0.2, deg_to_rad(90.0)), 0.2)

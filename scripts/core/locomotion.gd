@@ -63,7 +63,7 @@ func _step_grounded(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 	var speed := 0.0
 	if not dir.is_zero_approx():
 		speed = _t.walk_speed
-		if _wants_run(intent, _t) and _stamina.can_start():
+		if wants_run(intent, _t) and _stamina.can_start():
 			_stamina.drain(_t.run_cost, delta)
 			speed = _t.run_speed
 	velocity = Vector3(dir.x * speed, 0.0, dir.z * speed)
@@ -172,17 +172,8 @@ func move_dir(intent: InputIntent) -> Vector3:
 	return _world_dir(intent)
 
 
-## 캐릭터가 이동 방향으로 몸을 돌려야 하는지.
-## 자동 달리기·전투 상태 → 항상 / 오른손 시점 조작 중 → 유지 / 달리기 → 회전 / 걷기 → 유지.
-static func turns_to_move(intent: InputIntent, tuning: MovementTuning) -> bool:
-	if intent.auto_run or intent.in_combat:
-		return true
-	if intent.camera_held:
-		return false
-	return _wants_run(intent, tuning)
-
-
-static func _wants_run(intent: InputIntent, tuning: MovementTuning) -> bool:
+## 달리기(직접: 스틱 run_threshold 이상 / 자동 달리기)인지.
+static func wants_run(intent: InputIntent, tuning: MovementTuning) -> bool:
 	return intent.auto_run or intent.move.length() >= tuning.run_threshold
 
 

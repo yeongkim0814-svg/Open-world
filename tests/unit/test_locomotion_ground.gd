@@ -43,19 +43,9 @@ func test_auto_run_runs_toward_camera_without_stick():
 	var v := _loco().step(i, _floor(), DT)
 	assert_almost(v.x, -t.run_speed)
 
-func test_walk_keeps_facing():
-	assert_false(Locomotion.turns_to_move(_intent(Vector2(0.3, 0)), t))
 
-func test_run_turns_to_move():
-	assert_true(Locomotion.turns_to_move(_intent(Vector2(1, 0)), t))
 
-func test_camera_held_run_keeps_facing():
-	var i := _intent(Vector2(1, 0)); i.camera_held = true
-	assert_false(Locomotion.turns_to_move(i, t))
 
-func test_auto_run_always_turns_even_with_camera_held():
-	var i := _intent(); i.auto_run = true; i.camera_held = true
-	assert_true(Locomotion.turns_to_move(i, t))
 
 func test_jump_leaves_ground():
 	var l := _loco()
@@ -69,9 +59,6 @@ func test_gravity_applies_in_air():
 	var v := l.step(_intent(), air, DT)
 	assert_almost(v.y, -t.gravity * DT)
 
-func test_in_combat_walk_turns_to_move():
-	var i := _intent(Vector2(0.3, 0)); i.in_combat = true
-	assert_true(Locomotion.turns_to_move(i, t))
 
 func test_threatened_jump_with_stick_dodges():
 	var s := Stamina.new(t); var l := Locomotion.new(t, s)
