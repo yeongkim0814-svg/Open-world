@@ -3,7 +3,7 @@ extends RefCounted
 ## 이동 상태기계. 노드에 의존하지 않으며 step()이 다음 속도를 계산한다.
 ## sense 키: on_floor: bool, wall_normal: Vector3 (없으면 ZERO), ledge_top: bool
 
-enum State { GROUNDED, AIRBORNE, CLIMBING, GLIDING }
+enum State { GROUNDED, AIRBORNE, CLIMBING, GLIDING, DODGING }
 
 const WALL_STICK_SPEED := 1.0    ## 등반 중 벽에 붙어 있도록 벽 방향으로 미는 속도
 const LEDGE_HOP_HEIGHT := 2.1    ## 벽 끝에서 올라설 때 솟는 높이 (m) — 끝 감지 레이(머리 1.7m)보다 높아야 발이 턱을 넘는다
@@ -13,14 +13,19 @@ const REGRAB_BLOCK_TIME := 0.5   ## 올라서기/벽 점프 직후 재등반 금
 var state := State.GROUNDED
 var velocity := Vector3.ZERO
 
+var dodge_kind := Dodge.Kind.HOP_BACK
+
 var _t: MovementTuning
+var _c: CombatTuning
 var _stamina: Stamina
+var _dodge_time := 0.0
 var _regrab_block := 0.0          ## > 0 이면 올라서기 도약 중 (재등반 금지 + 수평 속도 유지)
 var _climb_jumping := false       ## 벽 점프 직후: 카메라와 무관하게 위로 밀면 다시 붙는다
 
 
-func _init(tuning: MovementTuning, stamina: Stamina) -> void:
+func _init(tuning: MovementTuning, stamina: Stamina, combat := CombatTuning.new()) -> void:
 	_t = tuning
+	_c = combat
 	_stamina = stamina
 
 
@@ -35,6 +40,8 @@ func step(intent: InputIntent, sense: Dictionary, delta: float) -> Vector3:
 			_step_climbing(intent, sense, delta)
 		State.GLIDING:
 			_step_gliding(intent, sense, delta)
+		State.DODGING:
+			_step_dodging(sense, delta)
 	return velocity
 
 
@@ -42,6 +49,17 @@ func _step_grounded(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 	if _try_start_climb(intent, sense):
 		return
 	var dir := _world_dir(intent)
+	if intent.jump_pressed and intent.threatened and not dir.is_zero_approx():
+		# 적의 공격 중 스틱+점프 = 회피. 탈진이면 아무것도 하지 않는다 (점프도 안 함).
+		if _stamina.can_start():
+			_stamina.spend(_c.dodge_cost)
+			dodge_kind = Dodge.classify(dir, intent.facing_yaw)
+			velocity = dir * _c.dodge_speed
+			_dodge_time = 0.0
+			state = State.DODGING
+		else:
+			velocity = Vector3.ZERO
+		return
 	var speed := 0.0
 	if not dir.is_zero_approx():
 		speed = _t.walk_speed
@@ -101,6 +119,20 @@ func _step_climbing(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 		_stamina.hold()
 	elif not _stamina.drain(_t.climb_cost, delta):
 		state = State.AIRBORNE
+
+
+func _step_dodging(sense: Dictionary, delta: float) -> void:
+	_dodge_time += delta
+	if not sense.get("on_floor", false):
+		velocity.y -= _t.gravity * delta
+	if _dodge_time >= _c.dodge_duration:
+		velocity = Vector3.ZERO
+		state = State.GROUNDED
+
+
+## 회피 시작 후 무적 시간 동안 true.
+func is_invulnerable() -> bool:
+	return state == State.DODGING and _dodge_time < _c.dodge_iframes
 
 
 func _step_gliding(intent: InputIntent, sense: Dictionary, delta: float) -> void:

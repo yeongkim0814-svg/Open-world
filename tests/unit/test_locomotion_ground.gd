@@ -72,3 +72,27 @@ func test_gravity_applies_in_air():
 func test_in_combat_walk_turns_to_move():
 	var i := _intent(Vector2(0.3, 0)); i.in_combat = true
 	assert_true(Locomotion.turns_to_move(i, t))
+
+func test_threatened_jump_with_stick_dodges():
+	var s := Stamina.new(t); var l := Locomotion.new(t, s)
+	var i := _intent(Vector2(0, -1), true); i.threatened = true
+	l.step(i, _floor(), DT)
+	assert_eq(l.state, Locomotion.State.DODGING)
+	assert_true(l.is_invulnerable())
+	assert_almost(s.value, t.stamina_max - CombatTuning.new().dodge_cost)
+
+func test_not_threatened_jump_with_stick_is_jump():
+	var l := _loco(); l.step(_intent(Vector2(0, -1), true), _floor(), DT)
+	assert_eq(l.state, Locomotion.State.AIRBORNE)
+
+func test_exhausted_dodge_does_nothing():               # Review Focus 2
+	var s := Stamina.new(t); s.spend(100.0); var l := Locomotion.new(t, s)
+	var i := _intent(Vector2(0, -1), true); i.threatened = true
+	var v := l.step(i, _floor(), DT)
+	assert_eq(l.state, Locomotion.State.GROUNDED); assert_almost(v.y, 0.0)
+
+func test_dodge_ends_after_duration():
+	var l := _loco(); var i := _intent(Vector2(1, 0), true); i.threatened = true
+	l.step(i, _floor(), DT)
+	for k in 30: l.step(_intent(), _floor(), DT)          # 0.5초 > 0.45
+	assert_eq(l.state, Locomotion.State.GROUNDED); assert_false(l.is_invulnerable())
