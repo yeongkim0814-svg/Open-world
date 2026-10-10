@@ -237,6 +237,11 @@ func move_dir(intent: InputIntent) -> Vector3:
 
 ## 달리기인지: 자동 달리기, 또는 스틱을 정면 run_cone_deg 안으로 run_threshold 이상 밀었을 때.
 ## 옆·뒤로 미는 것은 세기와 상관없이 걷기 (캐릭터는 항상 카메라를 보므로 게걸음·뒷걸음).
+## 오를 수 있는 면: 45° 이상 경사(걷기 한계와 일치)·수직 벽·약한 오버행. 천장은 불가.
+static func is_climbable(normal: Vector3) -> bool:
+	return normal.y < 0.7 and normal.y > -0.3
+
+
 static func wants_run(intent: InputIntent, tuning: MovementTuning) -> bool:
 	if intent.aiming:            # 활을 당기는 중 = 걷기만 (C18)
 		return false

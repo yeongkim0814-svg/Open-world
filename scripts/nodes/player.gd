@@ -97,7 +97,7 @@ func _sense() -> Dictionary:
 	var wall_normal := Vector3.ZERO
 	if _wall_ray.is_colliding():
 		var n := _wall_ray.get_collision_normal()
-		if absf(n.y) < 0.3:
+		if Locomotion.is_climbable(n):
 			wall_normal = n
 	return {
 		"on_floor": is_on_floor(),
