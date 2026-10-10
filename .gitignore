@@ -1,3 +1,5 @@
 .godot/
 .superpowers/
 export_presets.cfg
+# 일회용 헤드리스 프로브 스크립트 (커밋하지 않음)
+tests/_*
