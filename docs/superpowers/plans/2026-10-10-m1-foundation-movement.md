@@ -8,7 +8,7 @@
 
 **Tech Stack:** Godot 4.7.2, GDScript, Mobile 렌더러, 자체 경량 테스트 러너(애드온 없음).
 
-**Spec:** `docs/design/01-core-design.md` (0장, 3장 기둥 1, 8장, 10장), `docs/design/02-combat-design.md` (2장 조작 체계)
+**Spec:** `docs/design/01-core-design.md` (0장, 3장 기둥 1, 8장, 10장), `docs/design/02-combat-design.md` v0.3 (2장 조작 체계, C10~C12)
 
 ---
 
@@ -17,7 +17,7 @@
 | 마일스톤 | 내용 | 검증 질문 |
 |---|---|---|
 | **M1 (이 문서)** | 프로젝트 기반, 터치 입력, 이동(달리기·점프·등반·활공·스태미나), 카메라, 회색 섬, FPS 실측 | 태블릿에서 60 FPS 근처가 나오는가? 이동이 손에 붙는가? |
-| M2 | 전투 코어: 락온, 회피(무적), 패링(무기·방패), 슬로우모션 연타, 한손검 | **터치 패링이 재미있는가?** (최대 리스크 — 가장 먼저 검증) |
+| M2 | 전투 코어: 자동 조준(+탭 고정), 컨텍스트 버튼, 회피(무적), 방어·패링(무기·방패), 슬로우모션 연타, 한손검 | **터치 패링이 재미있는가?** (최대 리스크 — 가장 먼저 검증) |
 | M3 | 수호 기계 2종(근접·원거리), 예고 신호(🟡/🔴), 대검·활, 내구도 | 회피만으로 이길 수 있고, 패링이 확실히 이득인가? |
 | M4 | 원소(불·바람·젖음) 규칙표 + 기계 반응(과열·급냉 균열), 비 날씨 | 의도하지 않은 해법이 나오는가? |
 | M5 | 첫 섬 본편: 지형·셀셰이딩·포그, 착취탑(정지 → 회색→컬러 전환), 거점 1곳 | 15분간 스스로 목표를 정해 움직이는가? |
@@ -34,7 +34,7 @@
 - 물리 틱 **60 Hz** 고정. 게임 판정은 `_physics_process`에서만.
 - 성능 목표: **60 FPS 목표 / 30 FPS 하한**, 3D 해상도 스케일 **0.75** 시작.
 - 화면: **가로 고정**(landscape), S11 Ultra 16:10 기준, UI는 앵커로 비율 대응.
-- 조작: **터치 우선**. 오른손 버튼은 최대 4개(공격·강공격·회피·패링) — M1에서는 점프·달리기만 사용, 나머지 자리는 비워 둠.
+- 조작: **터치 우선, 오른손 버튼 3개**(공격 · 방어 · 점프/회피). M1에서는 점프만 동작, 공격·방어 자리는 비워 둠. **달리기 버튼 없음 — 스틱을 끝까지 밀면 전력질주** (02 문서 2장).
 - 튜닝 수치는 하드코딩 금지 — `MovementTuning` 리소스(`.tres`) 한 곳에 모은다.
 - 문서·주석은 한국어, 식별자는 영어 snake_case(GDScript 관례).
 
@@ -167,7 +167,7 @@ func test_regen_caps_at_max():
 - Create: `scripts/core/input_intent.gd`, `scripts/core/locomotion.gd`, `tests/unit/test_locomotion_ground.gd`
 
 **Interfaces:**
-- Produces: `InputIntent extends RefCounted` — `var move: Vector2`(길이 ≤ 1, x=오른쪽, y=앞), `var sprint: bool`, `var jump_pressed: bool`(이번 틱에 눌림), `var jump_held: bool`, `var camera_yaw: float`(라디안; 이동 방향을 카메라 기준으로 변환할 때 사용).
+- Produces: `InputIntent extends RefCounted` — `var move: Vector2`(길이 ≤ 1, x=오른쪽, y=앞), `var sprint: bool`(터치: 스틱 길이 ≥ 0.95일 때 `true` — Task 5에서 설정), `var jump_pressed: bool`(이번 틱에 눌림), `var jump_held: bool`, `var camera_yaw: float`(라디안; 이동 방향을 카메라 기준으로 변환할 때 사용).
 - Produces: `Locomotion extends RefCounted`
   - `enum State { GROUNDED, AIRBORNE, CLIMBING, GLIDING }`
   - `_init(tuning: MovementTuning, stamina: Stamina)`
@@ -308,8 +308,8 @@ func test_glider_closes_when_stamina_empty():      # Review Focus 2
 - Create: `scripts/core/virtual_stick.gd`, `tests/unit/test_virtual_stick.gd`, `scripts/nodes/touch_controls.gd`, `scenes/touch_controls.tscn`
 
 **Interfaces:**
-- Produces: `VirtualStick extends RefCounted` — `_init(radius_px: float = 120.0, dead_zone: float = 0.15)`, `func press(index: int, pos: Vector2) -> bool`(이미 다른 손가락이 잡고 있으면 `false`), `func drag(index: int, pos: Vector2) -> void`(자기 index만 반영), `func release(index: int) -> void`, `func value() -> Vector2`(길이 ≤ 1, 데드존 내 0, 화면 위쪽 = +y).
-- Produces: `TouchControls`(Control) — `signal intent_updated(intent: InputIntent)`를 매 물리 틱 발신. 왼쪽 40% 영역 터치 = 스틱(누른 자리에 생성되는 플로팅 스틱), 오른쪽 나머지 영역 드래그 = 카메라(`var camera_drag: Vector2` 누적 후 틱마다 소비). 버튼: **점프**(오른쪽 하단), **달리기 토글**(점프 왼쪽). 공격·강공격·회피·패링 자리는 반투명 빈 원으로 표시만(M2에서 연결). 키보드/패드 대체: WASD/좌스틱, Space/A = 점프, Shift/LB = 달리기 — PC 디버그용, 같은 `InputIntent`로 수렴.
+- Produces: `VirtualStick extends RefCounted` — `_init(radius_px: float = 120.0, dead_zone: float = 0.15)`, `func press(index: int, pos: Vector2) -> bool`(이미 다른 손가락이 잡고 있으면 `false`), `func drag(index: int, pos: Vector2) -> void`(자기 index만 반영), `func release(index: int) -> void`, `func value() -> Vector2`(길이 ≤ 1, 데드존 내 0, 화면 위쪽 = +y), `func is_full_push() -> bool`(`value().length() >= 0.95`).
+- Produces: `TouchControls`(Control) — `signal intent_updated(intent: InputIntent)`를 매 물리 틱 발신. 왼쪽 40% 영역 터치 = 스틱(누른 자리에 생성되는 플로팅 스틱), 오른쪽 나머지 영역 드래그 = 카메라(`var camera_drag: Vector2` 누적 후 틱마다 소비). 버튼: **점프/회피**(오른쪽 위), 공격·방어 자리는 반투명 빈 원으로 표시만(M2에서 연결). 스틱 길이 ≥ 0.95 → `intent.sprint = true`. 점프 버튼은 `func set_context(combat: bool)`로 아이콘을 점프↔회피로 교체하는 구조만 마련(M1에서는 항상 점프). 키보드/패드 대체: WASD/좌스틱, Space/A = 점프, Shift/LB = 전력질주 — PC 디버그용, 같은 `InputIntent`로 수렴.
 
 - [ ] **Step 1: 실패하는 테스트** `tests/unit/test_virtual_stick.gd`
 
@@ -339,6 +339,13 @@ func test_release_other_finger_keeps_stick():      # Review Focus 1
 	assert_almost(s.value().x, 1.0)
 	s.release(0)
 	assert_eq(s.value(), Vector2.ZERO)
+
+func test_full_push_counts_as_sprint():
+	var s := VirtualStick.new(100.0)
+	s.press(0, Vector2(200, 500)); s.drag(0, Vector2(200, 380))
+	assert_true(s.is_full_push())
+	s.drag(0, Vector2(200, 440))
+	assert_false(s.is_full_push())
 ```
 - [ ] **Step 2: 실행 → FAIL.**
 - [ ] **Step 3: `VirtualStick` 구현, `TouchControls` 노드·씬 구현** (스틱은 `VirtualStick` 사용, `InputEventScreenTouch/ScreenDrag`의 `index`로 분배).
