@@ -26,6 +26,7 @@ var _interact_label := ""            ## 비어 있으면 팝업 숨김
 var _interact_queued := false
 var _switch_queued := false
 var _weapon_label := ""
+var _aiming := false
 
 
 func _ready() -> void:
@@ -52,6 +53,13 @@ func show_interact(label: String) -> void:
 func set_weapon_label(label: String) -> void:
 	if _weapon_label != label:
 		_weapon_label = label
+		queue_redraw()
+
+
+## 활 조준 중: 화면 중앙 십자선.
+func set_aiming(on: bool) -> void:
+	if _aiming != on:
+		_aiming = on
 		queue_redraw()
 
 
@@ -201,6 +209,10 @@ func _draw() -> void:
 	draw_string(font, buttons["attack"] + Vector2(-24, 8), "공격", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 	draw_string(font, buttons["guard"] + Vector2(-24, 8), "방어", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 	draw_string(font, buttons["weapon"] + Vector2(-40, 8), _weapon_label, HORIZONTAL_ALIGNMENT_CENTER, 80, 20)
+	if _aiming:
+		var c := size * 0.5
+		for d in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
+			draw_line(c + d * 6, c + d * 18, Color(1, 1, 1, 0.9), 2.0)
 	if not _interact_label.is_empty():
 		var r := _interact_rect()
 		draw_rect(r, Color(0.1, 0.1, 0.1, 0.6))

@@ -109,3 +109,11 @@ func test_forward_40_degrees_full_push_runs():
 func test_forward_60_degrees_full_push_walks():
 	var v := _loco().step(_intent(Vector2(sin(deg_to_rad(60.0)), cos(deg_to_rad(60.0)))), _floor(), DT)
 	assert_almost(Vector2(v.x, v.z).length(), t.walk_speed)
+
+
+func test_aiming_walks_only():
+	var s := Stamina.new(t); var l := Locomotion.new(t, s)
+	var i := _intent(Vector2(0, 1)); i.aiming = true
+	var v := l.step(i, _floor(), DT)
+	assert_almost(Vector2(v.x, v.z).length(), t.walk_speed)
+	assert_almost(s.value, t.stamina_max)

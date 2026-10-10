@@ -25,6 +25,7 @@ var _combo_step := 0
 var _combo_timer := 0.0
 var _cooldown := 0.0
 var _stun := 0.0
+var _draw: BowDraw                  ## 장착한 활의 당기기 상태 (활이 아니면 null)
 
 
 func setup(player: Player) -> void:
@@ -41,6 +42,10 @@ func setup(player: Player) -> void:
 	arsenal = Arsenal.new(weapons)
 
 
+func is_drawing() -> bool:
+	return _draw != null and _draw.drawing
+
+
 func is_stunned() -> bool:
 	return _stun > 0.0
 
@@ -52,6 +57,8 @@ func reset() -> void:
 	_cooldown = 0.0
 	_combo_step = 0
 	_combo_timer = 0.0
+	if _draw:
+		_draw.cancel()
 	guard = Guard.new(combat_tuning)
 	flurry = Flurry.new(combat_tuning)
 
@@ -71,10 +78,11 @@ func tick(intent: InputIntent, delta: float) -> void:
 		guard.release()
 	if intent.switch_weapon_pressed:
 		switch_weapon()
-	if is_stunned() or _cooldown > 0.0:
-		return
 	var w := arsenal.current()
-	if w.kind != WeaponData.Kind.MELEE:
+	if w.kind == WeaponData.Kind.BOW:
+		_tick_bow(w, intent, delta)
+		return
+	if is_stunned() or _cooldown > 0.0:
 		return
 	if intent.heavy_released:
 		_swing(w, true, w.heavy_cooldown)
@@ -84,9 +92,37 @@ func tick(intent: InputIntent, delta: float) -> void:
 
 ## 다음 무기로 교체. 콤보는 처음부터.
 func switch_weapon() -> void:
+	if _draw:
+		_draw.cancel()          # 당기던 화살은 쏘지 않는다
 	arsenal.cycle()
+	_draw = BowDraw.new(arsenal.current()) if arsenal.current().kind == WeaponData.Kind.BOW else null
 	_combo_step = 0
 	_combo_timer = 0.0
+
+
+## 활: 누르고 있으면 당기고, 떼면 발사 (C18). 한 틱보다 짧은 탭도 최소 비율로 발사.
+func _tick_bow(w: WeaponData, intent: InputIntent, delta: float) -> void:
+	if _draw == null:
+		_draw = BowDraw.new(w)
+	if is_stunned():
+		_draw.cancel()
+		return
+	var released := intent.attack_pressed or intent.heavy_released
+	if not _draw.drawing and _cooldown <= 0.0 and (intent.attack_held or released):
+		_draw.start()
+	_draw.tick(delta)
+	if _draw.drawing and (released or not intent.attack_held):
+		_fire(w, _draw.release())
+
+
+func _fire(w: WeaponData, ratio: float) -> void:
+	engaged_this_tick = true
+	_cooldown = w.light_cooldown
+	var dmg := w.damage * ratio
+	if arsenal.durability().is_broken():
+		dmg *= combat_tuning.broken_damage_mult
+	arsenal.durability().wear(combat_tuning.wear_hit)
+	_player.fire_arrow(Hit.make(dmg), w.arrow_speed * lerpf(0.5, 1.0, ratio))
 
 
 ## 근접 무기 한 번의 피해. 파손이면 broken_damage_mult, 대검 강공격은 적의 공격을 끊는다.

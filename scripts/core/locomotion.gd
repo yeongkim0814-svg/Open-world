@@ -176,6 +176,8 @@ func move_dir(intent: InputIntent) -> Vector3:
 ## 달리기인지: 자동 달리기, 또는 스틱을 정면 run_cone_deg 안으로 run_threshold 이상 밀었을 때.
 ## 옆·뒤로 미는 것은 세기와 상관없이 걷기 (캐릭터는 항상 카메라를 보므로 게걸음·뒷걸음).
 static func wants_run(intent: InputIntent, tuning: MovementTuning) -> bool:
+	if intent.aiming:            # 활을 당기는 중 = 걷기만 (C18)
+		return false
 	if intent.auto_run:
 		return true
 	if intent.move.length() < tuning.run_threshold:

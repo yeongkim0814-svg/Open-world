@@ -33,6 +33,7 @@ var _attack_face_lock := 0.0
 var _return_yaw := 0.0
 var _was_climbing := false
 var _camera_return := 0.0
+const ARROW_SCENE := preload("res://scenes/arrow.tscn")
 var parts := 0                     ## 주운 기계 부품 수 (M2)
 
 
@@ -62,6 +63,10 @@ func _physics_process(delta: float) -> void:
 		else:
 			_intent.move = Vector2.ZERO
 	_update_combat_context(delta)
+	_intent.aiming = combat.is_drawing()
+	_camera.set_aiming(_intent.aiming)
+	if touch_controls:
+		touch_controls.set_aiming(_intent.aiming)
 	if combat.is_stunned():
 		_intent.move = Vector2.ZERO
 		_intent.jump_pressed = false
@@ -192,6 +197,26 @@ func face_toward(point: Vector3) -> void:
 	if Vector2(to.x, to.z).length() > 0.01:
 		_facing.rotation.y = atan2(-to.x, -to.z)
 		_attack_face_lock = ATTACK_FACE_LOCK
+
+
+## 화면 중앙(카메라 정면)이 가리키는 지점. 아무것도 없으면 100m 앞.
+func aim_target() -> Vector3:
+	var cam := _camera.camera()
+	var from := cam.global_position
+	var to := from - cam.global_basis.z * 100.0
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	return hit.position if not hit.is_empty() else to
+
+
+## 가슴 높이에서 조준점으로 화살 발사.
+func fire_arrow(hit: Hit, speed: float) -> void:
+	var origin := global_position + Vector3.UP * 1.4
+	var dir := (aim_target() - origin).normalized()
+	var arrow: Arrow = ARROW_SCENE.instantiate()
+	get_parent().add_child(arrow)
+	arrow.launch(origin, dir * speed, hit, get_rid())
 
 
 ## 검 휘두르기 연출 (콤보 단계마다 방향을 바꿔 좌우로 벤다). 강공격은 위에서 아래로.
