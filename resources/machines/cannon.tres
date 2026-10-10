@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="MachineData" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/machine_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "포격형"
+ranged = true
+max_hp = 70.0
+armor = 1.0
+move_speed = 2.5
+alert_range = 22.0
+attack_range = 20.0
+keep_min = 8.0
+leash = 25.0
+damage = 15.0
+attack_interval = 2.5
+telegraph = 1.0
+active = 0.1
+recover = 0.8
+red_every = 3
+shot_speed = 14.0
+red_shot_speed = 20.0
+part_drop = 1
+respawn_time = 30.0

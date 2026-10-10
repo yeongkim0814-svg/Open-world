@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="MachineData" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/machine_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "칼날형"
+max_hp = 120.0
+armor = 0.4
+move_speed = 3.5
+alert_range = 15.0
+attack_range = 2.2
+leash = 25.0
+damage = 20.0
+attack_interval = 1.4
+telegraph = 0.6
+active = 0.2
+recover = 0.9
+red_every = 3
+part_drop = 1
+respawn_time = 30.0
