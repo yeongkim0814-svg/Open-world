@@ -17,8 +17,9 @@ var _intent := InputIntent.new()
 var _await_stick_release := false   ## 재시작 직후: 스틱을 한 번 놓을 때까지 이동 무시
 
 @onready var _facing: Node3D = $Facing
-@onready var _wall_ray: RayCast3D = $Facing/WallRay
-@onready var _head_ray: RayCast3D = $Facing/HeadRay
+@onready var _probe: Node3D = $Probe          ## 벽 감지 레이 묶음: 바라보는 방향이 아니라 이동 방향을 향한다
+@onready var _wall_ray: RayCast3D = $Probe/WallRay
+@onready var _head_ray: RayCast3D = $Probe/HeadRay
 @onready var _camera: OrbitCamera = $OrbitCamera
 
 
@@ -44,9 +45,11 @@ func _physics_process(delta: float) -> void:
 			_await_stick_release = false
 		else:
 			_intent.move = Vector2.ZERO
-			_intent.sprint = false
 
+	_aim_probe()
 	var v := locomotion.step(_intent, _sense(), delta)
+	if locomotion.state == Locomotion.State.CLIMBING and touch_controls:
+		touch_controls.cancel_auto_run()
 	velocity = v
 	if locomotion.state == Locomotion.State.GROUNDED and velocity.y <= 0.0:
 		velocity.y = -GROUND_STICK_SPEED
@@ -71,16 +74,26 @@ func _sense() -> Dictionary:
 	}
 
 
+## 바라보기 규칙: 등반 = 벽 / 활공 = 이동 방향 / 그 외는 Locomotion.turns_to_move (걷기·시점 조작 중엔 유지).
 func _update_facing(delta: float) -> void:
 	var look := Vector3.ZERO
-	if locomotion.state == Locomotion.State.CLIMBING and _wall_ray.is_colliding():
-		look = -_wall_ray.get_collision_normal()
-	else:
+	if locomotion.state == Locomotion.State.CLIMBING:
+		if _wall_ray.is_colliding():
+			look = -_wall_ray.get_collision_normal()
+	elif locomotion.state == Locomotion.State.GLIDING or Locomotion.turns_to_move(_intent, tuning):
 		look = Vector3(velocity.x, 0.0, velocity.z)
 	if look.length() < 0.1:
 		return
 	var target_yaw := atan2(-look.x, -look.z)
 	_facing.rotation.y = lerp_angle(_facing.rotation.y, target_yaw, minf(TURN_SPEED * delta, 1.0))
+
+
+## 벽 감지 레이를 이동 방향으로 돌린다 (등반 중에는 벽 쪽 유지, 이동이 없으면 바라보는 방향).
+func _aim_probe() -> void:
+	if locomotion.state == Locomotion.State.CLIMBING:
+		return
+	var dir := locomotion.move_dir(_intent)
+	_probe.rotation.y = atan2(-dir.x, -dir.z) if not dir.is_zero_approx() else _facing.rotation.y
 
 
 func _respawn() -> void:
@@ -89,6 +102,8 @@ func _respawn() -> void:
 	locomotion.velocity = Vector3.ZERO
 	locomotion.state = Locomotion.State.AIRBORNE
 	_await_stick_release = true
+	if touch_controls:
+		touch_controls.cancel_auto_run()
 	reset_physics_interpolation()
 	_camera.reset_physics_interpolation()
 

@@ -3,7 +3,7 @@ var t := MovementTuning.new()
 
 func test_drain_to_zero_sets_exhausted():
 	var s := Stamina.new(t)
-	for i in 300: s.drain(t.sprint_cost, 1.0 / 60.0)   # 5초 × 20/s = 100
+	for i in 600: s.drain(t.run_cost, 1.0 / 60.0)   # 10초 × 10/s = 100
 	assert_almost(s.value, 0.0)
 	assert_true(s.exhausted)
 	assert_false(s.can_start())

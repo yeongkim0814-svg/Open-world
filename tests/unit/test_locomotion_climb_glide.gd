@@ -97,3 +97,18 @@ func test_climb_jump_regrabs_regardless_of_camera():        # 리뷰 Important 4
 	var j := _intent(Vector2(0, 1)); j.camera_yaw = PI / 2
 	l.step(j, wall, DT)
 	assert_eq(l.state, Locomotion.State.CLIMBING)
+
+func test_walking_into_wall_grabs():
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.AIRBORNE
+	l.step(_intent(Vector2(0, 0.3)), wall, DT)
+	assert_eq(l.state, Locomotion.State.CLIMBING, "걷기로도 벽을 오름")
+
+func test_wall_within_40_degrees_grabs():
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.AIRBORNE
+	l.step(_intent(Vector2(sin(deg_to_rad(35.0)), cos(deg_to_rad(35.0)))), wall, DT)
+	assert_eq(l.state, Locomotion.State.CLIMBING)
+
+func test_wall_beside_does_not_grab():
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.AIRBORNE
+	l.step(_intent(Vector2(sin(deg_to_rad(50.0)), cos(deg_to_rad(50.0)))), wall, DT)
+	assert_eq(l.state, Locomotion.State.AIRBORNE, "벽을 옆에 끼고 이동할 때는 오르지 않음")

@@ -5,8 +5,6 @@ extends RefCounted
 
 enum State { GROUNDED, AIRBORNE, CLIMBING, GLIDING }
 
-const WALK_THRESHOLD := 0.5
-const CLIMB_GRAB_DOT := 0.5      ## 벽 쪽으로 미는 입력 성분이 이 이상이면 등반 시작
 const WALL_STICK_SPEED := 1.0    ## 등반 중 벽에 붙어 있도록 벽 방향으로 미는 속도
 const LEDGE_HOP_HEIGHT := 2.1    ## 벽 끝에서 올라설 때 솟는 높이 (m) — 끝 감지 레이(머리 1.7m)보다 높아야 발이 턱을 넘는다
 const LEDGE_HOP_FORWARD := 3.0   ## 올라설 때 벽 너머로 미는 속도
@@ -45,11 +43,11 @@ func _step_grounded(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 		return
 	var dir := _world_dir(intent)
 	var speed := 0.0
-	if intent.move.length() > 0.0:
-		speed = _t.run_speed if intent.move.length() >= WALK_THRESHOLD else _t.walk_speed
-		if intent.sprint and _stamina.can_start():
-			_stamina.drain(_t.sprint_cost, delta)
-			speed = _t.sprint_speed
+	if not dir.is_zero_approx():
+		speed = _t.walk_speed
+		if _wants_run(intent, _t) and _stamina.can_start():
+			_stamina.drain(_t.run_cost, delta)
+			speed = _t.run_speed
 	velocity = Vector3(dir.x * speed, 0.0, dir.z * speed)
 	if intent.jump_pressed:
 		velocity.y = _t.jump_velocity
@@ -128,7 +126,8 @@ func _try_start_climb(intent: InputIntent, sense: Dictionary) -> bool:
 	if wn == Vector3.ZERO or _regrab_block > 0.0 or not _stamina.can_start():
 		return false
 	var regrab := _climb_jumping and intent.move.y > 0.0
-	if not regrab and _world_dir(intent).dot(-wn) * intent.move.length() <= CLIMB_GRAB_DOT:
+	var into_wall := _world_dir(intent).dot(-wn) >= cos(deg_to_rad(_t.climb_grab_angle_deg))
+	if not regrab and not into_wall:
 		return false
 	_climb_jumping = false
 	state = State.CLIMBING
@@ -136,8 +135,27 @@ func _try_start_climb(intent: InputIntent, sense: Dictionary) -> bool:
 	return true
 
 
-## 스틱 입력을 카메라 yaw 기준 월드 수평 방향(정규화)으로 변환. Godot 전방 = -Z.
+## 이동 방향(월드 수평, 정규화). 자동 달리기면 카메라 정면. Godot 전방 = -Z. 이동이 없으면 ZERO.
+func move_dir(intent: InputIntent) -> Vector3:
+	return _world_dir(intent)
+
+
+## 캐릭터가 이동 방향으로 몸을 돌려야 하는지.
+## 자동 달리기 → 항상 / 오른손 시점 조작 중 → 유지 / 달리기 → 회전 / 걷기 → 유지.
+static func turns_to_move(intent: InputIntent, tuning: MovementTuning) -> bool:
+	if intent.auto_run:
+		return true
+	if intent.camera_held:
+		return false
+	return _wants_run(intent, tuning)
+
+
+static func _wants_run(intent: InputIntent, tuning: MovementTuning) -> bool:
+	return intent.auto_run or intent.move.length() >= tuning.run_threshold
+
+
 func _world_dir(intent: InputIntent) -> Vector3:
-	if intent.move.is_zero_approx():
+	var move := Vector2(0.0, 1.0) if intent.auto_run else intent.move
+	if move.is_zero_approx():
 		return Vector3.ZERO
-	return Vector3(intent.move.x, 0.0, -intent.move.y).normalized().rotated(Vector3.UP, intent.camera_yaw)
+	return Vector3(move.x, 0.0, -move.y).normalized().rotated(Vector3.UP, intent.camera_yaw)

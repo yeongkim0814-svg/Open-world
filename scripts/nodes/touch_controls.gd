@@ -1,6 +1,7 @@
 class_name TouchControls
 extends Control
 ## 터치 입력 → InputIntent. 왼쪽 40% = 플로팅 스틱, 오른쪽 = 카메라 드래그, 버튼은 직접 그리고 판정한다.
+## 자동 달리기: 스틱을 위로 끌어 🔒 아이콘에서 놓으면 고정, 스틱 영역을 다시 누르면 해제.
 ## 키보드/패드 입력도 같은 InputIntent로 수렴한다 (PC 디버그용).
 
 signal intent_updated(intent: InputIntent)
@@ -14,6 +15,7 @@ var _camera_touches := {}            ## index -> 마지막 위치
 var _camera_drag := Vector2.ZERO
 var _button_touches := {}            ## index -> 버튼 이름
 var _jump_queued := false
+var _auto_run := false
 var _combat := false
 
 
@@ -27,6 +29,12 @@ func _ready() -> void:
 func set_context(combat: bool) -> void:
 	_combat = combat
 	queue_redraw()
+
+
+func cancel_auto_run() -> void:
+	if _auto_run:
+		_auto_run = false
+		queue_redraw()
 
 
 func consume_camera_drag() -> Vector2:
@@ -68,6 +76,7 @@ func _on_touch_down(index: int, pos: Vector2) -> void:
 			queue_redraw()
 			return
 	if pos.x < size.x * STICK_AREA_RATIO:
+		_auto_run = false
 		_stick.press(index, pos)
 	else:
 		_camera_touches[index] = pos
@@ -75,7 +84,8 @@ func _on_touch_down(index: int, pos: Vector2) -> void:
 
 
 func _on_touch_up(index: int) -> void:
-	_stick.release(index)
+	if _stick.release(index):
+		_auto_run = true
 	_camera_touches.erase(index)
 	_button_touches.erase(index)
 	queue_redraw()
@@ -84,8 +94,11 @@ func _on_touch_up(index: int) -> void:
 func _physics_process(_delta: float) -> void:
 	var intent := InputIntent.new()
 	var key_move := Input.get_vector("move_left", "move_right", "move_back", "move_forward")
+	if Input.is_action_pressed("walk"):
+		key_move *= 0.5
 	intent.move = _stick.value() if _stick.is_active() else key_move
-	intent.sprint = _stick.is_full_push() or Input.is_action_pressed("sprint")
+	intent.auto_run = _auto_run
+	intent.camera_held = not _camera_touches.is_empty()
 	intent.jump_pressed = _jump_queued or Input.is_action_just_pressed("jump")
 	intent.jump_held = _button_touches.values().has("jump") or Input.is_action_pressed("jump")
 	_jump_queued = false
@@ -93,9 +106,17 @@ func _physics_process(_delta: float) -> void:
 
 
 func _draw() -> void:
+	var font := get_theme_default_font()
 	if _stick.is_active():
 		draw_circle(_stick.origin(), STICK_RADIUS, Color(1, 1, 1, 0.15))
 		draw_circle(_stick.origin() + Vector2(_stick.value().x, -_stick.value().y) * STICK_RADIUS, 40, Color(1, 1, 1, 0.5))
+		if _stick.value().y > 0.5:
+			var lock_pos := _stick.origin() + Vector2(0, -STICK_RADIUS * (VirtualStick.LOCK_ZONE + 0.2))
+			var lit := _stick.in_lock_zone()
+			draw_circle(lock_pos, 36, Color(1, 0.85, 0.3, 0.8 if lit else 0.3))
+			draw_string(font, lock_pos + Vector2(-24, 8), "자동", HORIZONTAL_ALIGNMENT_CENTER, -1, 20)
+	if _auto_run:
+		draw_string(font, Vector2(40, size.y - 40), "자동 달리기 — 왼쪽을 누르면 해제", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 0.85, 0.3))
 	var held := _button_touches.values()
 	var buttons := _buttons()
 	for name in buttons:
@@ -103,13 +124,13 @@ func _draw() -> void:
 		var alpha: float = 0.15 if not active else (0.6 if held.has(name) else 0.35)
 		draw_circle(buttons[name], BUTTON_RADIUS, Color(1, 1, 1, alpha))
 	var label := "회피" if _combat else "점프"
-	draw_string(get_theme_default_font(), buttons["jump"] + Vector2(-24, 8), label, HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
+	draw_string(font, buttons["jump"] + Vector2(-24, 8), label, HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 
 
 func _ensure_actions() -> void:
 	var keys := {
 		"move_left": KEY_A, "move_right": KEY_D, "move_forward": KEY_W, "move_back": KEY_S,
-		"jump": KEY_SPACE, "sprint": KEY_SHIFT,
+		"jump": KEY_SPACE, "walk": KEY_CTRL,
 	}
 	for action in keys:
 		if InputMap.has_action(action):
