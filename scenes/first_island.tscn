@@ -1,0 +1,78 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://scripts/nodes/first_island.gd" id="world"]
+[ext_resource type="Script" path="res://scripts/nodes/terrain.gd" id="terrain"]
+[ext_resource type="Texture2D" path="res://assets/terrain/first_island.png" id="hmap"]
+[ext_resource type="Script" path="res://scripts/nodes/water.gd" id="water"]
+[ext_resource type="Shader" path="res://shaders/vitality.gdshader" id="vshader"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="player"]
+[ext_resource type="PackedScene" path="res://scenes/touch_controls.tscn" id="touch"]
+[ext_resource type="Script" path="res://scripts/nodes/debug_hud.gd" id="hud"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
+sky_top_color = Color(0.5, 0.52, 0.55, 1)
+sky_horizon_color = Color(0.62, 0.64, 0.66, 1)
+ground_horizon_color = Color(0.62, 0.64, 0.66, 1)
+ground_bottom_color = Color(0.3, 0.31, 0.33, 1)
+
+[sub_resource type="Sky" id="Sky"]
+sky_material = SubResource("SkyMat")
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 2
+sky = SubResource("Sky")
+ambient_light_source = 3
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.6, 0.63, 0.66, 1)
+fog_density = 0.004
+fog_height = 6.0
+fog_height_density = 0.04
+
+[sub_resource type="ShaderMaterial" id="SeaMat"]
+shader = ExtResource("vshader")
+shader_parameter/albedo = Color(0.25, 0.65, 0.71, 1)
+shader_parameter/roughness_value = 0.3
+
+[sub_resource type="PlaneMesh" id="SeaMesh"]
+size = Vector2(2000, 2000)
+
+[node name="FirstIsland" type="Node3D"]
+script = ExtResource("world")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.354, 0.354, 0, 0.707, 0.707, -0.5, -0.612, 0.612, 0, 80, 0)
+shadow_enabled = true
+directional_shadow_max_distance = 80.0
+
+[node name="Terrain" type="StaticBody3D" parent="."]
+script = ExtResource("terrain")
+height_map = ExtResource("hmap")
+
+[node name="Sea" type="MeshInstance3D" parent="."]
+mesh = SubResource("SeaMesh")
+surface_material_override/0 = SubResource("SeaMat")
+
+[node name="SeaWater" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -20, 0)
+script = ExtResource("water")
+size = Vector3(2000, 40, 2000)
+
+[node name="Player" parent="." node_paths=PackedStringArray("touch_controls") instance=ExtResource("player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, 100)
+touch_controls = NodePath("../UI/TouchControls")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="TouchControls" parent="UI" instance=ExtResource("touch")]
+
+[node name="DebugHud" type="Label" parent="UI" node_paths=PackedStringArray("player")]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 400.0
+offset_bottom = 160.0
+script = ExtResource("hud")
+player = NodePath("../../Player")

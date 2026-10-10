@@ -5,7 +5,7 @@ config_version=5
 [application]
 
 config/name="Open World"
-run/main_scene="res://scenes/test_island.tscn"
+run/main_scene="res://scenes/first_island.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 
 [display]
@@ -25,3 +25,14 @@ common/physics_interpolation=true
 
 renderer/rendering_method="mobile"
 scaling_3d/scale=0.75
+
+[shader_globals]
+
+vitality_center={
+"type": "vec3",
+"value": Vector3(0, 0, -10)
+}
+vitality_radius={
+"type": "float",
+"value": 0.0
+}
