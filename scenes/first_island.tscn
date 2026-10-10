@@ -10,6 +10,9 @@
 [ext_resource type="Script" path="res://scripts/nodes/debug_hud.gd" id="hud"]
 [ext_resource type="Script" path="res://scripts/nodes/lake.gd" id="lake"]
 [ext_resource type="PackedScene" path="res://scenes/sluice.tscn" id="sluice"]
+[ext_resource type="PackedScene" path="res://scenes/tower.tscn" id="tower"]
+[ext_resource type="PackedScene" path="res://scenes/machine_blade.tscn" id="blade"]
+[ext_resource type="PackedScene" path="res://scenes/machine_cannon.tscn" id="cannon"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
 sky_top_color = Color(0.5, 0.52, 0.55, 1)
@@ -141,6 +144,15 @@ surface_material_override/0 = SubResource("StoneMat")
 
 [node name="Shape" type="CollisionShape3D" parent="Pillar2"]
 shape = SubResource("Pillar2Shape")
+
+[node name="Tower" parent="." instance=ExtResource("tower")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18, -10)
+
+[node name="TowerBlade" parent="." instance=ExtResource("blade")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 18.2, -1.5)
+
+[node name="TowerCannon" parent="." instance=ExtResource("cannon")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 18.2, -1.5)
 
 [node name="Sluice1" parent="." instance=ExtResource("sluice")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 34.2, -100)

@@ -38,13 +38,13 @@ static func height(x: float, z: float) -> float:
 	return lerpf(MIN_H, h, smoothstep(140.0, 125.0, d))                 # 해안 → 바다
 
 
-## 저수호: 바닥 -4, 반경 45~47 안쪽 벽, 47~55 둑 윗면 16, 55~65 바깥 경사. 탑 섬 반경 8 = 18.
+## 저수호: 바닥 -4, 반경 45~47 안쪽 벽, 47~55 둑 윗면 16, 55~65 바깥 경사. 탑 섬 반경 10 = 18.
 static func _lake(p: Vector2, h: float) -> float:
 	var dl := p.distance_to(LAKE)
-	if dl < 8.0:
+	if dl < 10.0:
 		return 18.0
-	if dl < 9.5:
-		return lerpf(18.0, -4.0, (dl - 8.0) / 1.5)
+	if dl < 11.5:
+		return lerpf(18.0, -4.0, (dl - 10.0) / 1.5)
 	if dl < 45.0:
 		return -4.0
 	if dl < 47.0:

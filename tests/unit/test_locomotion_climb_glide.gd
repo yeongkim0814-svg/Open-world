@@ -112,3 +112,24 @@ func test_wall_beside_does_not_grab():
 	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.AIRBORNE
 	l.step(_intent(Vector2(sin(deg_to_rad(50.0)), cos(deg_to_rad(50.0)))), wall, DT)
 	assert_eq(l.state, Locomotion.State.AIRBORNE, "벽을 옆에 끼고 이동할 때는 오르지 않음")
+
+
+func test_ledge_hop_does_not_regrab_next_wall_before_landing():   # 탑 계단식 단: 도약 중 다음 단 벽을 잡지 않음
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
+	_hop(l)
+	var into_wall := _intent(Vector2(0, 1))
+	for i in 50:                      # 0.83s — 기존 재등반 금지(0.5s)보다 길게, 아직 공중
+		l.step(into_wall, wall, DT)
+	assert_eq(l.state, Locomotion.State.AIRBORNE)
+	var floor_wall := wall.duplicate(); floor_wall["on_floor"] = true
+	l.velocity.y = -1.0
+	l.step(into_wall, floor_wall, DT)                    # 착지
+	l.step(into_wall, floor_wall, DT)                    # 착지 후 벽으로 밀면 다시 등반
+	assert_eq(l.state, Locomotion.State.CLIMBING)
+
+func test_ledge_hop_missed_can_regrab_when_falling_fast():
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
+	_hop(l)
+	l.velocity.y = -13.0
+	l.step(_intent(Vector2(0, 1)), wall, DT)
+	assert_eq(l.state, Locomotion.State.CLIMBING, "단을 놓쳐 크게 떨어지면 다시 잡을 수 있음")

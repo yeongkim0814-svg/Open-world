@@ -10,6 +10,7 @@ const WALL_STICK_SPEED := 1.0    ## 등반 중 벽에 붙어 있도록 벽 방�
 const LEDGE_HOP_HEIGHT := 2.1    ## 벽 끝에서 올라설 때 솟는 높이 (m) — 끝 감지 레이(머리 1.7m)보다 높아야 발이 턱을 넘는다
 const LEDGE_HOP_FORWARD := 3.0   ## 올라설 때 벽 너머로 미는 속도
 const REGRAB_BLOCK_TIME := 0.5   ## 올라서기/벽 점프 직후 재등반 금지 시간 (s)
+const HOP_REGRAB_FALL_SPEED := 12.0  ## 올라서기 도약 후 이보다 빨리 떨어지면(단을 놓침) 다시 벽을 잡을 수 있다
 const FLOAT_GAIN := 4.0          ## 수면 높이로 떠오르는 속도 계수
 const FLOAT_MAX_SPEED := 3.0
 const SWIM_EXIT_RATIO := 0.75    ## 이 비율보다 얕고 발이 바닥에 닿으면 걸어 나감
@@ -28,6 +29,7 @@ var _stamina: Stamina
 var _dodge_time := 0.0
 var _regrab_block := 0.0          ## > 0 이면 올라서기 도약 중 (재등반 금지 + 수평 속도 유지)
 var _climb_jumping := false       ## 벽 점프 직후: 카메라와 무관하게 위로 밀면 다시 붙는다
+var _hop_guard := false           ## 올라서기 도약 중: 착지할 때까지 다음 벽(계단식 탑의 윗단)을 잡지 않는다
 var _dash := 0.0                  ## 수영 가속 남은 시간
 var _dash_dir := Vector3.ZERO
 var _drown := 0.0                 ## 물에서 탈진한 시간
@@ -62,6 +64,7 @@ func step(intent: InputIntent, sense: Dictionary, delta: float) -> Vector3:
 
 func _enter_swim() -> void:
 	state = State.SWIMMING
+	_hop_guard = false
 	_dash = 0.0
 	_drown = 0.0
 	_climb_jumping = false
@@ -151,6 +154,7 @@ func _step_airborne(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 		velocity.y = 0.0
 		state = State.GROUNDED
 		_climb_jumping = false
+		_hop_guard = false
 
 
 func _step_climbing(intent: InputIntent, sense: Dictionary, delta: float) -> void:
@@ -169,6 +173,7 @@ func _step_climbing(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 		velocity = Vector3.UP * sqrt(2.0 * _t.gravity * LEDGE_HOP_HEIGHT) - wn * LEDGE_HOP_FORWARD
 		state = State.AIRBORNE
 		_regrab_block = REGRAB_BLOCK_TIME
+		_hop_guard = true
 		return
 	if intent.jump_pressed:
 		_stamina.spend(_t.climb_jump_cost)
@@ -218,13 +223,16 @@ func _glide_motion(intent: InputIntent, sense: Dictionary, delta: float) -> void
 ## 벽이 있고, 벽 쪽으로 밀고 있고, 스태미나로 시작할 수 있으면 등반 상태로 전환.
 func _try_start_climb(intent: InputIntent, sense: Dictionary) -> bool:
 	var wn: Vector3 = sense.get("wall_normal", Vector3.ZERO)
-	if wn == Vector3.ZERO or _regrab_block > 0.0 or not _stamina.can_start():
+	if wn == Vector3.ZERO or not _stamina.can_start():
+		return false
+	if (_regrab_block > 0.0 or _hop_guard) and velocity.y > -HOP_REGRAB_FALL_SPEED:
 		return false
 	var regrab := _climb_jumping and intent.move.y > 0.0
 	var into_wall := _world_dir(intent).dot(-wn) >= cos(deg_to_rad(_t.climb_grab_angle_deg))
 	if not regrab and not into_wall:
 		return false
 	_climb_jumping = false
+	_hop_guard = false
 	state = State.CLIMBING
 	velocity = Vector3.ZERO
 	return true

@@ -26,6 +26,7 @@ var _count := 0
 var _dead_time := 0.0
 var _hit_flash := 0.0
 var _hit_this_tick := false
+var _deactivated := false
 
 @onready var _eye_mat: StandardMaterial3D = ($Eye as MeshInstance3D).get_surface_override_material(0)
 @onready var _body_mat: StandardMaterial3D = ($Body as MeshInstance3D).get_surface_override_material(0)
@@ -79,6 +80,14 @@ func take_hit(hit: Hit) -> void:
 		_die()
 
 
+## 탑이 멈춤 → 영구 정지 (부활·부품 드롭 없음, 회색 조각상으로 남음).
+func deactivate() -> void:
+	_deactivated = true
+	attack.cancel()
+	hp = 0.0
+	velocity = Vector3.ZERO
+
+
 ## 패링당함: 공격 취소, 경직, 이 개체만 슬로우모션 (C5).
 func on_parried() -> void:
 	attack.cancel()
@@ -101,6 +110,8 @@ func _physics_process(delta: float) -> void:
 	var scaled := delta * _slow.enemy_time_scale()
 	_hit_flash = maxf(_hit_flash - delta, 0.0)
 	_update_visuals()
+	if _deactivated:
+		return
 	if not is_alive():
 		_dead_time += delta
 		if _dead_time >= data.respawn_time:
@@ -188,7 +199,7 @@ func _update_visuals() -> void:
 	var telegraph := attack != null and attack.phase == EnemyAttack.Phase.TELEGRAPH
 	var c := COLOR_PARRYABLE if attack == null or attack.parryable else COLOR_UNPARRYABLE
 	_eye_mat.emission = c if telegraph else Color(0.2, 0.6, 1.0)
-	_eye_mat.emission_energy_multiplier = 4.0 if telegraph else 1.0
+	_eye_mat.emission_energy_multiplier = 4.0 if telegraph else (0.0 if _deactivated else 1.0)
 	_body_mat.albedo_color = Color(1, 1, 1) if _hit_flash > 0.0 else (Color(0.2, 0.2, 0.2) if not is_alive() else Color(0.45, 0.5, 0.55))
 	_label.text = "%s %d" % [data.display_name, maxi(roundi(hp), 0)] if is_alive() else "…"
 
