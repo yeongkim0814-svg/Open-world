@@ -67,7 +67,8 @@ func _step_grounded(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 			_stamina.drain(_t.run_cost, delta)
 			speed = _t.run_speed
 	velocity = Vector3(dir.x * speed, 0.0, dir.z * speed)
-	if intent.jump_pressed:
+	if intent.jump_pressed and _stamina.can_start():
+		_stamina.spend(_t.jump_cost)
 		velocity.y = _t.jump_velocity
 		state = State.AIRBORNE
 	elif not sense.get("on_floor", false):

@@ -53,6 +53,16 @@ func test_jump_leaves_ground():
 	assert_almost(v.y, t.jump_velocity)
 	assert_eq(l.state, Locomotion.State.AIRBORNE)
 
+func test_jump_spends_stamina():
+	var s := Stamina.new(t); var l := Locomotion.new(t, s)
+	l.step(_intent(Vector2.ZERO, true), _floor(), DT)
+	assert_almost(s.value, t.stamina_max - t.jump_cost)
+
+func test_exhausted_cannot_jump():
+	var s := Stamina.new(t); s.spend(100.0); var l := Locomotion.new(t, s)
+	var v := l.step(_intent(Vector2.ZERO, true), _floor(), DT)
+	assert_eq(l.state, Locomotion.State.GROUNDED); assert_almost(v.y, 0.0)
+
 func test_gravity_applies_in_air():
 	var l := _loco(); l.state = Locomotion.State.AIRBORNE
 	var air := {"on_floor": false, "wall_normal": Vector3.ZERO, "ledge_top": false}

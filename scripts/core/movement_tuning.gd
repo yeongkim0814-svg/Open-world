@@ -18,6 +18,7 @@ extends Resource
 @export var stamina_regen := 25.0
 @export var stamina_regen_delay := 1.0
 @export var run_cost := 10.0          ## 달리기(직접·자동) 초당 소모. 걷기는 0
+@export var jump_cost := 10.0         ## 지면 점프 1회. 탈진이면 점프 불가
 @export var climb_cost := 10.0
 @export var climb_jump_cost := 20.0
 @export var glide_cost := 8.0
