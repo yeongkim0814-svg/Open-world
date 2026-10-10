@@ -13,6 +13,8 @@ const TARGET_HEIGHT := 1.5
 var yaw := 0.0
 var pitch := deg_to_rad(-15.0)
 
+var _follow := CameraFollow.new(preload("res://resources/combat_tuning.tres"))
+
 @onready var _arm: SpringArm3D = $SpringArm3D
 
 
@@ -20,6 +22,11 @@ func _ready() -> void:
 	top_level = true
 	if target:
 		_arm.add_excluded_object(target.get_rid())
+
+
+## 전투 상태에서 캐릭터 등 뒤로 자동 정렬 (C14). held = 오른손이 화면을 누르는 중, dodging = 회피 중.
+func follow(target_yaw: float, delta: float, held: bool, dodging: bool) -> void:
+	yaw = _follow.step(yaw, target_yaw, delta, held, dodging)
 
 
 func apply_drag(drag_px: Vector2) -> void:
