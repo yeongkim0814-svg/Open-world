@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://scripts/nodes/debug_hud.gd" id="hud"]
 [ext_resource type="PackedScene" path="res://scenes/training_dummy.tscn" id="dummy"]
 [ext_resource type="PackedScene" path="res://scenes/pickup_part.tscn" id="part"]
+[ext_resource type="PackedScene" path="res://scenes/machine_blade.tscn" id="blade"]
+[ext_resource type="PackedScene" path="res://scenes/machine_cannon.tscn" id="cannon"]
 
 [sub_resource type="BoxMesh" id="Mesh1"]
 size = Vector3(20, 5, 10)
@@ -229,6 +231,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 56)
 
 [node name="Part5" parent="." instance=ExtResource("part")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 54)
+
+[node name="MachineBlade" parent="." instance=ExtResource("blade")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 10)
+
+[node name="MachineCannon" parent="." instance=ExtResource("cannon")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 5)
 
 [node name="UI" type="CanvasLayer" parent="."]
 

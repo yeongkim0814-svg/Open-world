@@ -98,7 +98,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var events := attack.tick(scaled)
 	if events.has(&"hit") and _in_reach(p):
-		p.combat.on_enemy_hit(attack, self, damage)
+		p.combat.on_enemy_hit(attack.parryable, self, damage)
 	if attack.phase == EnemyAttack.Phase.IDLE:
 		_cooldown -= scaled
 		if _cooldown <= 0.0 and global_position.distance_to(p.global_position) <= attack_range:

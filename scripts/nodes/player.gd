@@ -177,6 +177,9 @@ func _update_combat_context(delta: float) -> void:
 			nearest = minf(nearest, d)
 		if d <= THREAT_RANGE and e.is_threatening():
 			threatened = true
+	for t in get_tree().get_nodes_in_group("threat"):     # 날아오는 탄
+		if t.is_threatening():
+			threatened = true
 	combat.tick(_intent, delta)
 	_intent.in_combat = combat.state.update(nearest, combat.engaged_this_tick, delta)
 	_intent.threatened = threatened

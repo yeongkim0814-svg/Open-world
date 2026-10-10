@@ -133,22 +133,22 @@ func melee_hit(weapon: WeaponData, heavy: bool) -> Hit:
 	return Hit.make(dmg, weapon.armor_pierce, heavy and weapon.heavy_staggers)
 
 
-## 적 공격이 맞는 순간 TrainingDummy가 호출.
-func on_enemy_hit(attack: EnemyAttack, enemy: Node3D, damage: float) -> void:
+## 적 공격(근접 일격·탄)이 닿는 순간 호출. source = 공격한 적 또는 탄 — 패링되면 source.on_parried().
+func on_enemy_hit(parryable: bool, source: Node3D, damage: float) -> void:
 	engaged_this_tick = true
 	if _player.locomotion.is_invulnerable():
 		last_result = "회피"
 		return
 	var stamina := _player.stamina
 	var can_afford := not stamina.exhausted and stamina.value >= combat_tuning.guard_cost
-	match guard.resolve(attack.parryable, has_shield, can_afford):
+	match guard.resolve(parryable, has_shield, can_afford):
 		Guard.Result.PARRIED:
 			last_result = "패링!"
 			flurry.start()
 			if not has_shield:
 				arsenal.durability().wear(combat_tuning.wear_parry)
-			if enemy.has_method("on_parried"):
-				enemy.on_parried()
+			if source.has_method("on_parried"):
+				source.on_parried()
 		Guard.Result.BLOCKED:
 			last_result = "막기"
 			stamina.spend(combat_tuning.guard_cost)
