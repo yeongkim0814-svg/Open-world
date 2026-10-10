@@ -26,7 +26,7 @@
 | W4 | 지형 | 흑백 높이 지도 PNG (태블릿 그림 앱으로 수정 가능) + 날카로운 형태는 상자 도형 |
 | W5 | 순서 자유 | 탑은 언제든 정지 가능. 결과는 정지 순간 열린 수문 수로 정해짐 (번영·버팀·쇠퇴) |
 | W6 | 탑 정지 | 모든 탑 공통 = 등반 + 꼭대기 코어. 탑마다 고유한 접근 장치 1개 |
-| W7 | 첫 탑 장치 | 저수호 해자 — 수문을 열수록 수위가 내려가 둑길이 드러남 |
+| W7 | 첫 탑 장치 | 저수호 해자 — 높은 고대 둑에 갇힌 깊은 호수(압도감). 수문을 열수록 수위가 크게 내려가 돌기둥·둑길이 드러남 |
 | W8 | 마을 | 주민 5명으로 시작, 데이터 추가로 확장 가능 |
 | W9 | 탑의 표현 | 작동 중 = 잿빛 줄기가 탑으로 빨려 드는 소용돌이(착취). 정지 = 초록·금빛 생명력이 터져 땅으로 흐름(회복). **빛은 언제나 생명** |
 
@@ -66,7 +66,7 @@
 - **수문 1 (등반):** 북쪽 산 중턱, 30m 바위벽 위. 스태미나를 나눠 쓰는 경로(중간 턱)가 있다.
 - **수문 2 (활공):** 서쪽 협곡 건너편. 높은 쪽에서 뛰어 활공해야 닿는다. 아래로 돌아가는 긴 길(헤엄+등반)도 존재.
 - **수문 3 (전투):** 동남쪽. 칼날형 2기 + 포격형 1기가 지키는 소규모 거점.
-- **저수호:** 탑 섬을 둘러싼 반경 약 45m의 호수. 둑길(남쪽 → 탑)은 초기 수면 3.6m 아래. 수문 1개당 수위 −1.2m → 3개면 둑길이 드러남. 둑길 위 포격형 1기 (헤엄 중엔 방어 불가 → 위협).
+- **저수호 (압도감):** 반경 약 45m의 호수를 높이 16m의 **고대 둑**이 둘러싼다. 초기 수면 **14.6m** — 마을(3m)보다 11m 이상 높아, 마을에서 올려다보면 둑이 물을 막고 그 위로 탑이 솟는다. 바닥 −4m(수심 약 18m). 수문 1개당 **−3.9m** (14.6 → 10.7 → 6.8 → 2.9), 내려갈수록 둑 안쪽에 물때가 드러난다. 둑길(남쪽 둑 → 탑 섬) 윗면 3.2m — 3개 열면 드러나 걸어서 건넌다. 둑길 선의 **돌기둥 2개**(윗면 11.0m·7.1m)가 수위에 따라 차례로 드러나 쉼터가 된다(열수록 헤엄 거리 단축). 탑 섬은 바위 기둥(윗면 18m). 탑 섬 기슭 포격형 1기 (헤엄 중엔 방어 불가 → 위협).
 - **탑:** 높이 60m, 쉼터(발판) 2곳(20m·40m, 서 있으면 스태미나 회복). 탑 밑 칼날형 1기, 40m 쉼터 칼날형 1기. 꼭대기 코어 = 상호작용 「정지」.
 - **마을 마른샘:** 남쪽 저지대, 해변과 저수호 사이. 집 6채 + 광장 우물 + 대장간 + 촌장 집. 고대 수로가 북쪽에서 마을 우물로 이어진다.
 - 연쇄 장치(설계서 01 4.2): 각 수문에서 다음 목표(다른 수문 또는 탑)가 최소 1개 보이게 배치.
@@ -79,7 +79,7 @@
 |---|---|---|
 | `HeightField` | 높이 지도 샘플링 | `_init(image: Image, world_size: float, min_h: float, max_h: float)`, `height_at(x, z) -> float`(쌍선형), `normal_at(x, z) -> Vector3` |
 | `WorldState` | 진행 상태 | `sluices: Array[bool]`(3), `tower_stopped: bool`, `outcome_at_stop: int`(−1 = 미정), `departed: Array[StringName]`, `open_sluice(i)`, `stop_tower()`, `open_count()`, `to_dict()/from_dict()` |
-| `LakeLevel` | 수위 | `static level(base_y: float, open_count: int, drop := 1.2) -> float` |
+| `LakeLevel` | 수위 | `static level(base_y: float, open_count: int, drop := 3.9) -> float` |
 | `VillageOutcome` | 결과 등급 | `enum Tier { THRIVE, ENDURE, DECLINE }`, `static tier(open_count) -> Tier`, `static repair_cost(tier) -> int`, `static departing(tier) -> Array[StringName]` |
 | `DialoguePicker` | 대사 선택 | `static pick(table: Dictionary, npc: StringName, state: WorldState) -> PackedStringArray` — 조건이 가장 구체적인 항목 우선 |
 | `SaveGame` | 저장 | `static save(path, data: Dictionary) -> bool`, `static load(path) -> Dictionary`(없거나 손상 → `{}`) |

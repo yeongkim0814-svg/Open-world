@@ -14,7 +14,7 @@
 
 - Godot 4.7.2, GDScript만, Mobile 렌더러, 텍스트 씬, 판정은 `_physics_process`(60 Hz).
 - 섬 300m × 300m, 북쪽 = −Z. 높이 지도 높이 범위 **−10 ~ 60m**, 메시 격자 **2m**.
-- 바다 수면 y = **0** (첫 섬 기준). 저수호 초기 수면 **6.6**, 수문 1개당 **−1.2m**, 둑길 윗면 **3.2** (수문 3개 → 수면 3.0, 둑길 드러남).
+- 바다 수면 y = **0** (첫 섬 기준). 저수호: 고대 둑 높이 **16**, 바닥 **−4**, 초기 수면 **14.6**, 수문 1개당 **−3.9m** (14.6 → 10.7 → 6.8 → 2.9), 둑길 윗면 **3.2**, 돌기둥 윗면 **11.0 · 7.1**, 탑 섬 윗면 **18**.
 - 탑 높이 **60m**, 쉼터 **20m·40m**, 꼭대기 코어 = 상호작용 「정지」.
 - 정지 시 회복 반경 **0 → 220m**를 **6초**에 확장, 경계 폭 **10m**.
 - 잿빛 = 채도 약 **15%** + 약간 푸른 기. 고채도 예외: 생명력 빛, 🟡/🔴 신호, 코어 청록 — 셰이더 회색 처리 제외.
@@ -90,8 +90,8 @@ docs/perf/m4a-check.md
   - 섬 바깥(중심에서 140m 밖) → −10 (바다 밑), 해안 130~140m는 0~2로 경사.
   - 기본 평지 8.
   - 마을 저지대: (0, 95) 중심 반경 35m → 3.
-  - 저수호 분지: (0, −10) 중심 반경 45m → 바닥 0.5, 가장자리 45~52m에서 8로 상승.
-  - 탑 섬: (0, −10) 반경 8m → 8 (분지 위로 솟음).
+  - 저수호 분지: (0, −10) 중심 반경 45m → 바닥 −4. 고대 둑: 반경 45~55m 고리 → 16 (안쪽은 가파른 벽, 바깥은 55~65m에서 8로 내려감).
+  - 탑 섬: (0, −10) 반경 8m → 18 (바위 기둥).
   - 북쪽 산: (0, −120) 가우스 봉우리 최고 58 (반경 약 40m).
   - 서쪽 능선(활공 출발): (−70, −30) 높이 35 · 협곡: x −95 ± 8m 를 따라 z −80 ~ 40 깊이 2 · 서쪽 고원: (−125, −20) 높이 20.
   - 남쪽 해변: z 120~140 구간 0~2.
@@ -99,8 +99,9 @@ docs/perf/m4a-check.md
 
 - [ ] **Step 1: 실패 테스트** `test_first_island_map.gd` (`HeightField.new(load PNG Image, 300, -10, 60)`):
   - `test_village_lowland` — `height_at(0, 95)` 2~4
-  - `test_lake_basin_below_causeway` — `height_at(0, -40)` < 2 (둑길 자리 아래 분지)
-  - `test_tower_islet_above_lake` — `height_at(0, -10)` > 7
+  - `test_lake_basin_below_causeway` — `height_at(0, -40)` < 0 (둑길 자리 아래 분지)
+  - `test_dam_ring_high` — `height_at(0, 40)` 15~17 (남쪽 둑)
+  - `test_tower_islet_above_lake` — `height_at(0, -10)` > 16
   - `test_mountain_peak` — `height_at(0, -120)` > 50
   - `test_canyon_and_plateau` — `height_at(-95, -20)` < 4, `height_at(-70, -30)` > 30, `height_at(-125, -20)` 17~23
   - `test_sea_outside` — `height_at(149, 149)` < 0
@@ -131,11 +132,11 @@ docs/perf/m4a-check.md
 
 **Interfaces:**
 - Produces: `WorldState extends RefCounted` — `var sluices: Array[bool] = [false, false, false]`, `var tower_stopped := false`, `var outcome_at_stop := -1`, `var departed: Array[StringName] = []`; `open_sluice(i: int) -> bool` (새로 열었으면 true, 이미 열림·범위 밖 false), `open_count() -> int`, `stop_tower() -> bool` (처음이면 true, `outcome_at_stop = open_count()`), `to_dict() -> Dictionary`, `static from_dict(d: Dictionary) -> WorldState` (잘못된 값은 기본값).
-- Produces: `LakeLevel` — `static level(base_y: float, open_count: int, drop := 1.2) -> float` (open_count 0~3으로 클램프).
-- Produces: `Lake extends Water` — `@export var base_level := 6.6`, `@export var move_speed := 0.4` (m/s), `set_target(y: float)`, 수면 메시를 현재 수위로 이동. `depth_at`은 현재 수위 기준.
+- Produces: `LakeLevel` — `static level(base_y: float, open_count: int, drop := 3.9) -> float` (open_count 0~3으로 클램프).
+- Produces: `Lake extends Water` — `@export var base_level := 14.6`, `@export var move_speed := 1.0` (m/s), `set_target(y: float)`, 수면 메시를 현재 수위로 이동. `depth_at`은 현재 수위 기준.
 - Produces: `Sluice` (Node3D, 그룹 "interactable") — `@export var index: int`, `prompt()` = `"수문 열기"` / 열린 뒤 `"수문 (열림)"`, `interact(player)` → `get_tree().get_first_node_in_group("world").open_sluice(index)`. 열리면 문짝 메시가 올라감.
 - Produces: `FirstIsland.state: WorldState`, `FirstIsland.open_sluice(i: int) -> void` (state 갱신 → `lake.set_target(LakeLevel.level(lake.base_level, state.open_count()))` → 수로 물 표시 갱신).
-- 배치: 저수호 = Lake (중심 (0, ?, −10), 수평 100×100, 바닥 y 0), 둑길 = 상자 StaticBody (남쪽 기슭 (0, 3.2 윗면, 35) → 탑 섬 (0, −2)), 수문 3개 = 수문1 (−20, 산 중턱, −100) · 수문2 (−125, 20, −20) · 수문3 (95, 8, 60) — Task 6에서 지형 맞춰 높이 보정. 고대 수로 = 북쪽→마을 상자 수로 + 물 띠 메시(열린 수문 ≥ 1이면 보임).
+- 배치: 저수호 = Lake (중심 (0, ?, −10), 수평 90×90, 바닥 y −4), 둑길 = 상자 StaticBody 윗면 3.2 (남쪽 둑 안쪽 벽 밑 (0, 34) → 탑 섬 기슭 (0, −2)), 돌기둥 2개 = 둑길 선 위 z 24 (윗면 11.0) · z 10 (윗면 7.1), 반경 2.5m, 수문 3개 = 수문1 (−20, 산 중턱, −100) · 수문2 (−125, 20, −20) · 수문3 (95, 8, 60) — Task 6에서 지형 맞춰 높이 보정. 고대 수로 = 북쪽→마을 상자 수로 + 물 띠 메시(열린 수문 ≥ 1이면 보임).
 - HUD: `"수문 %d/3 · 탑 %s"`.
 
 - [ ] **Step 1: 실패 테스트** `test_world_state.gd`:
@@ -144,9 +145,9 @@ docs/perf/m4a-check.md
   - `test_stop_records_outcome_once` — 2개 열고 stop → `outcome_at_stop == 2`; 1개 더 열고 다시 stop → false, 여전히 2 (Review Focus 3)
   - `test_round_trip` — 상태 → `to_dict` → `from_dict` 동일
   - `test_from_garbage_defaults` — `from_dict({"sluices": "x", "tower_stopped": 5})` → 기본값
-  - `test_lake_levels` — `level(6.6, 0..3)` = 6.6, 5.4, 4.2, 3.0; `level(6.6, 7)` = 3.0
+  - `test_lake_levels` — `level(14.6, 0..3)` = 14.6, 10.7, 6.8, 2.9; `level(14.6, 7)` = 2.9
 - [ ] **Step 2:** FAIL. **Step 3:** 구현 + 씬 배치. **Step 4:** ALL PASSED.
-- [ ] **Step 5:** 탐침 `tests/_probe_lake.gd`: (a) 수문 0 → 둑길 위 (0, 4, 20)에 놓은 플레이어 = SWIMMING, (b) `open_sluice(0..2)` 후 수위가 3.0에 도달(약 10초) → 같은 자리 GROUNDED, 남쪽 기슭에서 탑 섬까지 걸어서(스틱 앞) 도달, (c) 수위 하강 중 헤엄치던 플레이어가 GROUNDED로 바뀜 (Review Focus 4).
+- [ ] **Step 5:** 탐침 `tests/_probe_lake.gd`: (a) 수문 0 → 둑길 위 (0, 4, 20)에 놓은 플레이어 = SWIMMING (수면 14.6까지 떠오름), 돌기둥 2개 모두 물속, (a2) 수문 1 → 수위 10.7, 돌기둥1 윗면에 서면 GROUNDED, (b) `open_sluice(0..2)` 후 수위가 2.9에 도달(약 12초) → 같은 자리 GROUNDED, 남쪽 기슭에서 탑 섬까지 걸어서(스틱 앞) 도달, (c) 수위 하강 중 헤엄치던 플레이어가 GROUNDED로 바뀜 (Review Focus 4).
 - [ ] **Step 6:** 커밋 `feat(m4a): 진행 상태·저수호 수위·수문 3곳`
 
 ### Task 5: 탑 · 코어 정지 · 회복 연출
@@ -159,7 +160,7 @@ docs/perf/m4a-check.md
 - `TowerCore` (그룹 "interactable"): `prompt()` = `"정지"` / 정지 후 `"탑 (멈춤)"`, `interact(player)` → `world.stop_tower()`.
 - `FirstIsland.stop_tower()`: `state.stop_tower()`가 true일 때만 — 소용돌이 emitting=false, 터짐 발사, 구름판 페이드, `vitality_radius` 0→220 6초 트윈(`RenderingServer.global_shader_parameter_set`), 그룹 "enemy"의 `deactivate()` 호출.
 - `Machine.deactivate()`: 공격 취소, 이동 정지, 회색(본체 색 어둡게, 눈 발광 끔), `is_alive()` false, 부활 없음, 부품 드롭 없음.
-- 배치: 탑 섬 (0, 8, −10). 기계: 칼날형 탑 밑 (6, 8, −2), 칼날형 40m 쉼터, 포격형 탑 섬 남쪽 기슭 (0, 8, −3) — 저수호를 향함.
+- 배치: 탑 섬 (0, 18, −10) (탑 높이는 섬 윗면 기준 60m). 기계: 칼날형 탑 밑 (5, 18, −4), 칼날형 40m 쉼터, 포격형 탑 섬 남쪽 가장자리 (0, 18, −3) — 저수호를 향함.
 
 - [ ] **Step 1:** 구현.
 - [ ] **Step 2:** `./run_tests.sh` ALL PASSED.
