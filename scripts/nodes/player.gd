@@ -26,6 +26,7 @@ var _await_stick_release := false   ## 재시작 직후: 스틱을 한 번 놓�
 
 const THREAT_RANGE := 6.0          ## 이 거리 안의 적이 공격 중이면 회피 문맥 (C16)
 var _swing_tween: Tween
+var parts := 0                     ## 주운 기계 부품 수 (M2)
 
 
 func _ready() -> void:
@@ -59,6 +60,7 @@ func _physics_process(delta: float) -> void:
 		_intent.jump_pressed = false
 		_intent.auto_run = false
 
+	_update_interaction()
 	_aim_probe()
 	var v := locomotion.step(_intent, _sense(), delta)
 	if locomotion.state == Locomotion.State.CLIMBING and touch_controls:
@@ -189,3 +191,19 @@ func play_swing(step: int, heavy: bool) -> void:
 
 func _on_died() -> void:
 	_respawn()
+
+
+## 앞쪽 가까운 상호작용 대상을 골라 팝업을 띄우고, 누르면 실행한다. 전투 중에도 동작 (C15).
+func _update_interaction() -> void:
+	var nodes := get_tree().get_nodes_in_group("interactable")
+	var positions: Array[Vector3] = []
+	for n in nodes:
+		positions.append(n.global_position)
+	var i := InteractPicker.pick(global_position, facing_forward(), positions)
+	if touch_controls:
+		if i == -1:
+			touch_controls.hide_interact()
+		else:
+			touch_controls.show_interact(nodes[i].prompt())
+	if i != -1 and _intent.interact_pressed:
+		nodes[i].interact(self)

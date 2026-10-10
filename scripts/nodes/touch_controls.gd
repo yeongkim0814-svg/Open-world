@@ -21,6 +21,8 @@ var _attack_hold := -1.0             ## 공격 버튼 누른 시간 (s), 안 누
 var _attack_release_queued := 0      ## 0 없음 / 1 탭 / 2 강공격
 var _guard_queued := false
 var _key_attack_hold := -1.0
+var _interact_label := ""            ## 비어 있으면 팝업 숨김
+var _interact_queued := false
 
 
 func _ready() -> void:
@@ -34,6 +36,21 @@ func set_threatened(threatened: bool) -> void:
 	if _threatened != threatened:
 		_threatened = threatened
 		queue_redraw()
+
+
+## 상호작용 팝업 (C15): 오른손 버튼 위쪽 고정 위치에 "줍기: 기계 부품" 형식으로 표시.
+func show_interact(label: String) -> void:
+	if _interact_label != label:
+		_interact_label = label
+		queue_redraw()
+
+
+func hide_interact() -> void:
+	show_interact("")
+
+
+func _interact_rect() -> Rect2:
+	return Rect2(Vector2(size.x - 420, size.y - 360), Vector2(240, 64))
 
 
 func cancel_auto_run() -> void:
@@ -72,6 +89,10 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_touch_down(index: int, pos: Vector2) -> void:
+	if not _interact_label.is_empty() and _interact_rect().has_point(pos):
+		_interact_queued = true
+		_button_touches[index] = "interact"
+		return
 	var buttons := _buttons()
 	for name in buttons:
 		if pos.distance_to(buttons[name]) <= BUTTON_RADIUS:
@@ -124,6 +145,8 @@ func _physics_process(delta: float) -> void:
 	intent.guard_pressed = _guard_queued or Input.is_action_just_pressed("guard")
 	intent.guard_held = _button_touches.values().has("guard") or Input.is_action_pressed("guard")
 	_guard_queued = false
+	intent.interact_pressed = _interact_queued or Input.is_action_just_pressed("interact")
+	_interact_queued = false
 	var key_move := Input.get_vector("move_left", "move_right", "move_back", "move_forward")
 	if Input.is_action_pressed("walk"):
 		key_move *= 0.5
@@ -157,12 +180,17 @@ func _draw() -> void:
 	draw_string(font, buttons["jump"] + Vector2(-24, 8), "회피" if _threatened else "점프", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 	draw_string(font, buttons["attack"] + Vector2(-24, 8), "공격", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
 	draw_string(font, buttons["guard"] + Vector2(-24, 8), "방어", HORIZONTAL_ALIGNMENT_CENTER, -1, 24)
+	if not _interact_label.is_empty():
+		var r := _interact_rect()
+		draw_rect(r, Color(0.1, 0.1, 0.1, 0.6))
+		draw_rect(r, Color(1, 1, 1, 0.8), false, 2.0)
+		draw_string(font, r.position + Vector2(16, 42), _interact_label, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 24, 26)
 
 
 func _ensure_actions() -> void:
 	var keys := {
 		"move_left": KEY_A, "move_right": KEY_D, "move_forward": KEY_W, "move_back": KEY_S,
-		"jump": KEY_SPACE, "walk": KEY_CTRL, "attack": KEY_J, "guard": KEY_K,
+		"jump": KEY_SPACE, "walk": KEY_CTRL, "attack": KEY_J, "guard": KEY_K, "interact": KEY_E,
 	}
 	for action in keys:
 		if InputMap.has_action(action):
