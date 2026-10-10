@@ -29,11 +29,21 @@ func test_exhausted_cannot_start_climb():          # Review Focus 4
 	l.step(_intent(Vector2(0, 1)), wall, DT)
 	assert_eq(l.state, Locomotion.State.AIRBORNE)
 
-func test_ledge_top_climbs_onto_ground():
+func test_ledge_top_hops_up_and_over():
 	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
 	var top := wall.duplicate(); top["ledge_top"] = true
-	l.step(_intent(Vector2(0, 1)), top, DT)
-	assert_eq(l.state, Locomotion.State.GROUNDED)
+	var v := l.step(_intent(Vector2(0, 1)), top, DT)
+	assert_eq(l.state, Locomotion.State.AIRBORNE)
+	assert_true(v.y * v.y / (2.0 * t.gravity) >= Locomotion.LEDGE_HOP_HEIGHT - 0.01, "몸 높이 이상 솟아야 함")
+	assert_true(v.z < 0.0, "벽 너머(앞)로 이동해야 함")
+
+func test_ledge_hop_keeps_vertical_speed_next_tick():
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
+	var top := wall.duplicate(); top["ledge_top"] = true
+	var v0 := l.step(_intent(Vector2(0, 1)), top, DT)
+	var v1 := l.step(_intent(Vector2(0, 1)), wall, DT)   # 아직 벽이 감지되어도
+	assert_eq(l.state, Locomotion.State.AIRBORNE, "올라서는 중 다시 벽에 붙으면 안 됨")
+	assert_almost(v1.y, v0.y - t.gravity * DT)
 
 func test_jump_while_falling_opens_glider():
 	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.AIRBORNE

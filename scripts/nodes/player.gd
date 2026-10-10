@@ -10,6 +10,7 @@ const TURN_SPEED := 12.0
 
 var stamina: Stamina
 var locomotion: Locomotion
+var respawn: RespawnTracker
 
 var _intent := InputIntent.new()
 
@@ -22,6 +23,8 @@ var _intent := InputIntent.new()
 func _ready() -> void:
 	stamina = Stamina.new(tuning)
 	locomotion = Locomotion.new(tuning, stamina)
+	respawn = RespawnTracker.new(tuning.fall_respawn_y)
+	respawn.safe_point = global_position
 	if touch_controls:
 		touch_controls.intent_updated.connect(set_intent)
 
@@ -41,6 +44,8 @@ func _physics_process(delta: float) -> void:
 		velocity.y = -GROUND_STICK_SPEED
 	move_and_slide()
 	stamina.tick(delta)
+	if respawn.update(global_position, is_on_floor(), delta):
+		_respawn()
 	_update_facing(delta)
 
 
@@ -68,3 +73,10 @@ func _update_facing(delta: float) -> void:
 		return
 	var target_yaw := atan2(-look.x, -look.z)
 	_facing.rotation.y = lerp_angle(_facing.rotation.y, target_yaw, minf(TURN_SPEED * delta, 1.0))
+
+
+func _respawn() -> void:
+	global_position = respawn.safe_point + Vector3.UP
+	velocity = Vector3.ZERO
+	locomotion.velocity = Vector3.ZERO
+	locomotion.state = Locomotion.State.AIRBORNE
