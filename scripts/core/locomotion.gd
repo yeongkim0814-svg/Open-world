@@ -172,9 +172,14 @@ func move_dir(intent: InputIntent) -> Vector3:
 	return _world_dir(intent)
 
 
-## 달리기(직접: 스틱 run_threshold 이상 / 자동 달리기)인지.
+## 달리기인지: 자동 달리기, 또는 스틱을 정면 run_cone_deg 안으로 run_threshold 이상 밀었을 때.
+## 옆·뒤로 미는 것은 세기와 상관없이 걷기 (캐릭터는 항상 카메라를 보므로 게걸음·뒷걸음).
 static func wants_run(intent: InputIntent, tuning: MovementTuning) -> bool:
-	return intent.auto_run or intent.move.length() >= tuning.run_threshold
+	if intent.auto_run:
+		return true
+	if intent.move.length() < tuning.run_threshold:
+		return false
+	return absf(Vector2.UP.angle_to(Vector2(intent.move.x, -intent.move.y))) <= deg_to_rad(tuning.run_cone_deg) * 0.5
 
 
 func _world_dir(intent: InputIntent) -> Vector3:

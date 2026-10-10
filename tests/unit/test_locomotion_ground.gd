@@ -83,3 +83,19 @@ func test_dodge_ends_after_duration():
 	l.step(i, _floor(), DT)
 	for k in 30: l.step(_intent(), _floor(), DT)          # 0.5초 > 0.45
 	assert_eq(l.state, Locomotion.State.GROUNDED); assert_false(l.is_invulnerable())
+
+func test_side_full_push_walks():
+	var v := _loco().step(_intent(Vector2(1, 0)), _floor(), DT)
+	assert_almost(Vector2(v.x, v.z).length(), t.walk_speed, 0.001, "옆은 세기와 상관없이 걷기")
+
+func test_back_full_push_walks():
+	var v := _loco().step(_intent(Vector2(0, -1)), _floor(), DT)
+	assert_almost(Vector2(v.x, v.z).length(), t.walk_speed, 0.001, "뒤는 걷기")
+
+func test_forward_40_degrees_full_push_runs():
+	var v := _loco().step(_intent(Vector2(sin(deg_to_rad(40.0)), cos(deg_to_rad(40.0)))), _floor(), DT)
+	assert_almost(Vector2(v.x, v.z).length(), t.run_speed, 0.001, "정면 100° 안(좌우 50°)은 달리기")
+
+func test_forward_60_degrees_full_push_walks():
+	var v := _loco().step(_intent(Vector2(sin(deg_to_rad(60.0)), cos(deg_to_rad(60.0)))), _floor(), DT)
+	assert_almost(Vector2(v.x, v.z).length(), t.walk_speed)

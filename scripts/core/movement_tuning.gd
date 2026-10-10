@@ -6,6 +6,7 @@ extends Resource
 @export var walk_speed := 4.0
 @export var run_speed := 7.0
 @export var run_threshold := 0.6      ## 스틱을 이 비율 이상 밀면 달리기
+@export var run_cone_deg := 100.0     ## 달리기는 스틱이 정면 이 각도(전체) 안일 때만. 옆·뒤는 항상 걷기
 @export var jump_velocity := 5.0
 @export var gravity := 20.0
 @export var climb_speed := 2.0

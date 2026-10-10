@@ -28,9 +28,9 @@ const THREAT_RANGE := 6.0          ## 이 거리 안의 적이 공격 중이면 
 const CLIMB_CAMERA_RETURN_TIME := 0.3
 const CLIMB_CAMERA_RETURN_DEG_PER_SEC := 600.0
 var _swing_tween: Tween
-var _was_moving := false
-var _walk_aligning := false
-var _align_yaw := 0.0
+const ATTACK_FACE_LOCK := 0.35       ## 공격 후 자동 조준 방향 유지 시간 (s)
+var _attack_face_lock := 0.0
+var _return_yaw := 0.0
 var _was_climbing := false
 var _camera_return := 0.0
 var parts := 0                     ## 주운 기계 부품 수 (M2)
@@ -67,7 +67,6 @@ func _physics_process(delta: float) -> void:
 		_intent.jump_pressed = false
 		_intent.auto_run = false
 
-	_track_walk_start()
 	_update_interaction()
 	_aim_probe()
 	var v := locomotion.step(_intent, _sense(), delta)
@@ -98,52 +97,34 @@ func _sense() -> Dictionary:
 	}
 
 
-## 바라보기 (ViewRule): 걷기 = 유지 (평상시 정지→걷기 시작 순간만 카메라 방향으로 맞춤),
-## 달리기 = 이동 방향, 등반 = 벽, 회피 = 고정, 활공 = 이동 방향.
+## 바라보기 (ViewRule): 항상 카메라 방향 / 등반 = 벽 / 회피 = 고정.
+## 공격 직후 ATTACK_FACE_LOCK 동안은 자동 조준한 적 쪽을 유지한다.
 func _update_facing(delta: float) -> void:
-	var look := Vector3.ZERO
-	match ViewRule.facing(locomotion.state, _intent, tuning, _walk_aligning):
+	_attack_face_lock = maxf(_attack_face_lock - delta, 0.0)
+	match ViewRule.facing(locomotion.state):
 		ViewRule.Facing.KEEP:
 			return
 		ViewRule.Facing.WALL:
 			if _wall_ray.is_colliding():
-				look = -_wall_ray.get_collision_normal()
-		ViewRule.Facing.MOVE:
-			look = Vector3(velocity.x, 0.0, velocity.z)
+				var look := -_wall_ray.get_collision_normal()
+				_facing.rotation.y = lerp_angle(_facing.rotation.y, atan2(-look.x, -look.z), minf(TURN_SPEED * delta, 1.0))
 		ViewRule.Facing.CAMERA:
-			look = Vector3.FORWARD.rotated(Vector3.UP, _align_yaw)
-			if absf(angle_difference(_facing.rotation.y, _align_yaw)) < deg_to_rad(3.0):
-				_walk_aligning = false
-	if look.length() < 0.1:
-		return
-	var target_yaw := atan2(-look.x, -look.z)
-	_facing.rotation.y = lerp_angle(_facing.rotation.y, target_yaw, minf(TURN_SPEED * delta, 1.0))
+			if _attack_face_lock <= 0.0:
+				_facing.rotation.y = _camera.yaw
 
 
-## 카메라: 달리는 동안 등 뒤로 자동 정렬, 등반이 끝나면 한 번 복귀(0.3초), 그 외(걷기·정지·전투 걷기)는 자유.
+## 카메라: 자동 회전 없음. 등반이 끝나면(올라서거나 뛰어내림) 0.3초에 걸쳐 등 뒤(벽 방향)로 복귀.
 func _update_camera(delta: float) -> void:
 	var climbing := locomotion.state == Locomotion.State.CLIMBING
 	if _was_climbing and not climbing and not _intent.camera_held:
 		_camera_return = CLIMB_CAMERA_RETURN_TIME
+		_return_yaw = _facing.rotation.y
 	_was_climbing = climbing
 	if _intent.camera_held:
 		_camera_return = 0.0
 	if _camera_return > 0.0:
 		_camera_return -= delta
-		_camera.yaw = CameraFollow.turn_toward(_camera.yaw, _facing.rotation.y, deg_to_rad(CLIMB_CAMERA_RETURN_DEG_PER_SEC) * delta)
-	elif ViewRule.camera_follows(locomotion.state, _intent, tuning):
-		_camera.follow(_facing.rotation.y, delta, _intent.camera_held, false)
-
-
-## 정지 상태에서 걷기를 시작하는 순간을 감지 (그때만 카메라 방향으로 몸을 맞춤).
-func _track_walk_start() -> void:
-	var moving := not _intent.move.is_zero_approx() or _intent.auto_run
-	if moving and not _was_moving:
-		_walk_aligning = true
-		_align_yaw = _camera.yaw
-	elif not moving:
-		_walk_aligning = false
-	_was_moving = moving
+		_camera.yaw = CameraFollow.turn_toward(_camera.yaw, _return_yaw, deg_to_rad(CLIMB_CAMERA_RETURN_DEG_PER_SEC) * delta)
 
 
 ## 벽 감지 레이를 이동 방향으로 돌린다 (등반 중에는 벽 쪽 유지, 이동이 없으면 바라보는 방향).
@@ -192,16 +173,11 @@ func _update_combat_context(delta: float) -> void:
 		if d <= THREAT_RANGE and e.is_threatening():
 			threatened = true
 	combat.tick(_intent, delta)
-	var was_in_combat := combat.state.active
 	_intent.in_combat = combat.state.update(nearest, combat.engaged_this_tick, delta)
 	_intent.threatened = threatened
-	_intent.facing_yaw = _facing.rotation.y
+	_intent.facing_yaw = _camera.yaw     # 회피 방향은 카메라 기준
 	if touch_controls:
 		touch_controls.set_threatened(threatened)
-		if _intent.in_combat and not was_in_combat:
-			touch_controls.cancel_auto_run()
-	if _intent.in_combat:
-		_intent.auto_run = false
 
 
 func facing_forward() -> Vector3:
@@ -209,9 +185,12 @@ func facing_forward() -> Vector3:
 
 
 func face_toward(point: Vector3) -> void:
+	if locomotion.state == Locomotion.State.DODGING:
+		return
 	var to := point - global_position
 	if Vector2(to.x, to.z).length() > 0.01:
 		_facing.rotation.y = atan2(-to.x, -to.z)
+		_attack_face_lock = ATTACK_FACE_LOCK
 
 
 ## 검 휘두르기 연출 (콤보 단계마다 방향을 바꿔 좌우로 벤다). 강공격은 위에서 아래로.
