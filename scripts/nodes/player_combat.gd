@@ -25,6 +25,7 @@ var _combo_step := 0
 var _combo_timer := 0.0
 var _cooldown := 0.0
 var _stun := 0.0
+var _attack_latch := false          ## 무기 교체 때 누르고 있던 공격 버튼: 뗄 때까지 무시
 var _draw: BowDraw                  ## 장착한 활의 당기기 상태 (활이 아니면 null)
 
 
@@ -78,6 +79,12 @@ func tick(intent: InputIntent, delta: float) -> void:
 		guard.release()
 	if intent.switch_weapon_pressed:
 		switch_weapon()
+	if _attack_latch:
+		if intent.attack_held:
+			return
+		_attack_latch = false
+		if intent.attack_pressed or intent.heavy_released:
+			return                  # 교체 전에 누르던 공격을 뗀 것 → 무시
 	var w := arsenal.current()
 	if w.kind == WeaponData.Kind.BOW:
 		_tick_bow(w, intent, delta)
@@ -95,6 +102,7 @@ func switch_weapon() -> void:
 	if _draw:
 		_draw.cancel()          # 당기던 화살은 쏘지 않는다
 	arsenal.cycle()
+	_attack_latch = true            # 누르던 공격은 새 무기로 넘기지 않는다
 	_draw = BowDraw.new(arsenal.current()) if arsenal.current().kind == WeaponData.Kind.BOW else null
 	_combo_step = 0
 	_combo_timer = 0.0

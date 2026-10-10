@@ -27,6 +27,7 @@ var _interact_queued := false
 var _switch_queued := false
 var _weapon_label := ""
 var _aiming := false
+var _attack_drag_pos := Vector2.ZERO  ## 활 조준 중 공격 버튼을 끌면 카메라가 돈다 (C18)
 
 
 func _ready() -> void:
@@ -106,6 +107,10 @@ func _input(event: InputEvent) -> void:
 			_on_touch_up(event.index)
 	elif event is InputEventScreenDrag:
 		_stick.drag(event.index, event.position)
+		if _aiming and _button_touches.get(event.index) == "attack":
+			_camera_drag += event.relative if event.relative != Vector2.ZERO else event.position - _attack_drag_pos
+		if _button_touches.get(event.index) == "attack":
+			_attack_drag_pos = event.position
 		if _camera_touches.has(event.index):
 			_camera_drag += event.position - _camera_touches[event.index]
 			_camera_touches[event.index] = event.position
@@ -119,7 +124,9 @@ func _on_touch_down(index: int, pos: Vector2) -> void:
 			_button_touches[index] = name
 			match name:
 				"jump": _jump_queued = true
-				"attack": _attack_hold = 0.0
+				"attack":
+					_attack_hold = 0.0
+					_attack_drag_pos = pos
 				"guard": _guard_queued = true
 				"weapon": _switch_queued = true
 			queue_redraw()

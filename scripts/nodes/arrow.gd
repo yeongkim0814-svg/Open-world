@@ -2,7 +2,7 @@ class_name Arrow
 extends Node3D
 ## 플레이어 화살. 매 틱 이전→다음 위치 구간을 레이캐스트해 지형·적과 충돌을 판정한다 (빠른 화살이 얇은 대상을 뚫지 않게).
 
-const WEAK_POINT_RADIUS := 0.45
+const WEAK_POINT_RADIUS := 0.4     ## 코어 반지름(0.3) + 여유
 
 var velocity := Vector3.ZERO
 
@@ -31,7 +31,7 @@ func _physics_process(delta: float) -> void:
 		var target: Object = result.collider
 		if target is Node and target.is_in_group("enemy") and target.is_alive():
 			if target.has_method("core_point"):
-				_hit.weak_point = result.position.distance_to(target.core_point()) <= WEAK_POINT_RADIUS
+				_hit.weak_point = Hit.passes_near(result.position, velocity, target.core_point(), WEAK_POINT_RADIUS)
 			target.take_hit(_hit)
 		queue_free()
 		return
