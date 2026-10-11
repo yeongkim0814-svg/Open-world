@@ -15,6 +15,15 @@ uniform float cliff_slope = 0.62;      // 법선 y가 이보다 작으면 바위
 uniform float sand_height = 1.5;       // 이 높이 아래 모래
 uniform float ground_patch = 0.68;     // 노이즈가 이보다 크면 흙 얼룩
 uniform float noise_amount = 0.06;
+// 색칠 지도 구역·길 (첫 섬 1km). use_zone_map이 꺼져 있으면 기존 색 띠만.
+uniform bool use_zone_map = false;
+uniform sampler2D zone_map : filter_nearest, repeat_disable;   // R8 = 구역 번호 (MapLegend.ZONES 순서)
+uniform sampler2D path_map : filter_nearest, repeat_disable;   // R8 = 0 없음, 1 흙길, 2 포장길, 3 수로
+uniform vec4 map_rect = vec4(-512.0, -512.0, 1024.0, 1024.0);
+uniform vec3 zone_depleted[7] : source_color;
+uniform vec3 zone_restored[7] : source_color;
+uniform vec3 path_depleted[2] : source_color;
+uniform vec3 path_restored[2] : source_color;
 uniform bool flat_shading = false;
 uniform float flat_fade_end = 150.0;
 
@@ -38,9 +47,21 @@ void fragment() {
 	// 흙 얼룩 + 완만→가파른 경사 사이 흙 띠
 	float g = smoothstep(ground_patch, ground_patch + 0.06, n);
 	g = max(g, smoothstep(cliff_slope + 0.10, cliff_slope + 0.04, v_wn.y));
+	if (use_zone_map) {
+		vec2 uv = (v_world.xz - map_rect.xy) / map_rect.zw;
+		int zi = clamp(int(texture(zone_map, uv).r * 255.0 + 0.5), 0, 6);
+		grass = style_color(zone_depleted[zi], zone_restored[zi], r, v_world, noise_amount);
+	}
 	vec3 c = mix(grass, ground, g);
 	c = mix(c, sand, smoothstep(sand_height + 0.4, sand_height - 0.2, v_world.y));
 	c = mix(c, rock, smoothstep(cliff_slope + 0.03, cliff_slope - 0.03, v_wn.y));
+	if (use_zone_map) {
+		vec2 uv = (v_world.xz - map_rect.xy) / map_rect.zw;
+		int pi = int(texture(path_map, uv).r * 255.0 + 0.5);
+		if (pi == 1 || pi == 2) {
+			c = style_color(path_depleted[pi - 1], path_restored[pi - 1], r, v_world, noise_amount * 0.5);
+		}
+	}
 	ALBEDO = c;
 	ROUGHNESS = 0.97;
 	if (flat_shading) {

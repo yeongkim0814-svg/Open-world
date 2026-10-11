@@ -20,3 +20,10 @@ func test_color_interpolates():
 func test_restored_is_more_saturated():
 	for k in StylePalette.DEPLETED:
 		assert_true(StylePalette.RESTORED[k].s >= StylePalette.DEPLETED[k].s, "채도: %s" % k)
+
+## 첫 섬 교체 A: 구역·길 땅 색 키 (회복 시 채도 규칙은 test_restored_is_more_saturated가 함께 검사)
+func test_zone_and_path_keys_exist():
+	for k in ["zone_broadleaf", "zone_conifer", "zone_wetland", "zone_highland", "zone_wasteland", "path_dirt", "path_paved"]:
+		assert_true(StylePalette.DEPLETED.has(k) and StylePalette.RESTORED.has(k), "키 없음: " + k)
+	# 황무지는 회복하면 초원 쪽 초록이 된다 (구역 전환)
+	assert_true(StylePalette.RESTORED.zone_wasteland.g > StylePalette.RESTORED.zone_wasteland.r, "회복된 황무지 = 초록 계열")

@@ -9,6 +9,10 @@ const DEPLETED := {
 	"ground": Color("#C8C2AC"), "sand": Color("#CFC9B6"), "rock": Color("#8C918F"),
 	"foliage": Color("#9AA391"), "flower": Color("#C4C2B8"),
 	"water_shallow": Color("#9FB1B3"), "water_deep": Color("#6E8288"),
+	# 구역 땅 색 (초원 = grass, 해안 = sand)과 길
+	"zone_broadleaf": Color("#9EA28E"), "zone_conifer": Color("#8F9786"), "zone_wetland": Color("#9AA79C"),
+	"zone_highland": Color("#A3A39C"), "zone_wasteland": Color("#B3A48E"),
+	"path_dirt": Color("#BDB39C"), "path_paved": Color("#A9A9A3"),
 }
 const RESTORED := {
 	"sky_zenith": Color("#4F86C0"), "sky_horizon": Color("#B7D3EA"),
@@ -16,6 +20,9 @@ const RESTORED := {
 	"ground": Color("#B9A27E"), "sand": Color("#D9C9A0"), "rock": Color("#8E8A82"),
 	"foliage": Color("#6E9A6A"), "flower": Color("#EED36A"),
 	"water_shallow": Color("#6FB8B9"), "water_deep": Color("#2F6F8F"),
+	"zone_broadleaf": Color("#557E45"), "zone_conifer": Color("#4B6B45"), "zone_wetland": Color("#5E8F6E"),
+	"zone_highland": Color("#8E8C7A"), "zone_wasteland": Color("#7FA85A"),   # 황무지는 회복하면 초원 쪽 초록
+	"path_dirt": Color("#A0855E"), "path_paved": Color("#9C978C"),
 }
 ## 항상 고채도 (회복값과 무관)
 const LIFE := Color("#76C9C3")
