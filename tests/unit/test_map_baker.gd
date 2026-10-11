@@ -189,3 +189,16 @@ func test_bake_markers_carry_crest_and_top():
 			assert_true(m.has("crest"), "저수호 crest")
 		if m["kind"] == "tower":
 			assert_true(m.has("top"), "탑 top")
+
+## 봉우리 표식(#800000)이 굽기까지 이어진다: 정상 = peak_height, 저수호 radius 기록.
+func test_bake_peak_marker_and_radius():
+	var mk := _markers_img()
+	mk.fill_rect(Rect2i(128, 128, 6, 6), MapLegend.MARKERS["peak"])
+	var layers := {"height": _height_img(3, 3), "markers": mk}
+	var cfg := {"min_h": -20.0, "max_h": 420.0, "peak_height": 300.0, "peak_radius": 100.0, "summit_radius": 30.0, "lake_radius": 20.0}
+	var baked := MapBaker.bake(layers, S, W, cfg)
+	assert_eq(baked["errors"].size(), 0, str(baked["errors"]))
+	assert_almost((baked["height"] as PackedFloat32Array)[131 * S + 131], 300.0, 1.0, "정상 300")
+	for m in baked["markers"]:
+		if m["kind"] == "lake":
+			assert_almost(m["radius"], 20.0, 0.0001)

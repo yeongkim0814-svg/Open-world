@@ -1,7 +1,7 @@
 class_name MapBaker
 extends RefCounted
 ## 색칠 지도 이미지들 → 구운 데이터. 노드 비의존, 결정적 (같은 입력 = 같은 출력).
-## 파이프라인: 띠 → 높이 (HeightBands) → 표식 도장 (MapStamps) → 길 효과 (흙길·포장길 평탄화, 수로 파기) → 개천 파기.
+## 파이프라인: 띠 → 평활화 (HeightBands) → 봉우리 → 저수호·탑·마을 (MapStamps) → 길 효과 (흙길·포장길 평탄화, 수로 파기) → 개천 파기 → 지느러미 제거.
 
 const H_MIN := -16.0                 ## 구운 높이 범위 기본값 (cfg min_h·max_h 로 바꿈)
 const H_MAX := 90.0
@@ -23,7 +23,8 @@ const REQUIRED_LAYERS := ["height", "markers"]
 ## 반환: {height: PackedFloat32Array(m), zones: PackedByteArray, paths: PackedByteArray,
 ##        markers: Array[Dictionary], errors: PackedStringArray, warnings: PackedStringArray, world: float}
 ##        world: float, meta: {world, size, min_h, max_h}
-## cfg (모두 선택): smooth_radius (기본 12), edge_sea (기본 true), min_h·max_h (기본 −16·90, 높이 한계).
+## cfg (모두 선택): smooth_radius (기본 12), edge_sea (기본 true), min_h·max_h (기본 −16·90, 높이 한계),
+##   peak_height (350), peak_radius (700), summit_radius (180), lake_radius (48), tower_radius (10) — MapStamps.apply 로 전달.
 ## errors 가 비어 있지 않으면 굽기 실패 (다른 값은 믿지 말 것).
 static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -> Dictionary:
 	var result := {
@@ -60,7 +61,7 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -
 		if bands[i] == MapLegend.CLIFF_INDEX:
 			cliff[i] = 1
 	var h := HeightBands.build(bands, size, cliff, float(cfg.get("smooth_radius", SMOOTH_RADIUS)), DETAIL, SEED, bool(cfg.get("edge_sea", true)))
-	MapStamps.apply(h, size, world, markers)
+	MapStamps.apply(h, size, world, markers, cfg)
 
 	# 구역 (비어 있음 = 초원 0)
 	var zones := PackedByteArray()
@@ -79,6 +80,8 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -
 			paths[i] = pl[i] + 1       # −1 → 0
 		_apply_paths(h, paths, size, world)
 		_dig_streams(h, paths, size)
+
+	MapStamps.despike(h, size, world)      # P17: 맨 마지막 (도장·길·개천이 만든 얇은 지느러미까지)
 
 	var lo: float = result["meta"]["min_h"]
 	var hi: float = result["meta"]["max_h"]

@@ -159,3 +159,47 @@ func test_hill_village_not_flattened():
 	var img := _img()
 	_blob(img, "hill_village", 100, 100)
 	assert_eq(_first(MarkerReader.read(img, S, W), "hill_village")["kind"], "hill_village")
+
+## 설계서 P17: 반경 4m 주변 최고점보다 6m 넘게 홀로 솟은 칸(지느러미)은 그 최고점으로 깎는다.
+func test_despike_removes_fin():
+	var h := _flat(5.0)
+	for x in range(100, 102):               # 폭 2칸·길이 3칸(약 2×3m) 얇은 지느러미 (고리 4m 밖으로 삐져나오지 않음)
+		for z in range(100, 103):
+			h[z * S + x] = 25.0
+	h[50 * S + 50] = 5.0 + 6.5              # 홀로 솟은 한 칸
+	MapStamps.despike(h, S, W)
+	for x in range(100, 102):
+		for z in range(100, 103):
+			assert_almost(h[z * S + x], 5.0, 0.0001, "지느러미가 주변 높이로 깎임")
+	assert_almost(h[50 * S + 50], 5.0, 0.0001, "한 칸 가시도 깎임")
+
+## 진짜 봉우리·비탈은 그대로 (경사가 이어지면 4m 안에 6m 넘는 홀로 솟음이 없다).
+func test_despike_keeps_peak():
+	var h := _flat(5.0)
+	for z in S:
+		for x in S:
+			var d := Vector2(x - 128, z - 128).length()
+			h[z * S + x] = 5.0 + maxf(0.0, 60.0 - d) * 1.2      # 경사 1.2 (약 50도) 원뿔
+	var before := h.duplicate()
+	MapStamps.despike(h, S, W)
+	assert_eq(h, before, "원뿔 봉우리·비탈은 그대로")
+	assert_almost(h[128 * S + 128], 5.0 + 72.0, 0.0001, "꼭대기 유지")
+
+## 설계서 P19: 해자 크기 설정. 바닥 평탄 = lake_radius − 2, 둑 = lake_radius ~ +12, 탑 섬 = tower_radius.
+func test_lake_radius_cfg():
+	var h := _flat(5.0)
+	var lake := {"kind": "lake", "x": -60.0, "z": 0.0, "yaw": 0.0}
+	var tower := {"kind": "tower", "x": 70.0, "z": 0.0, "yaw": 0.0}
+	MapStamps.apply(h, S, W, [lake, tower], {"lake_radius": 30.0, "tower_radius": 20.0})
+	assert_almost(lake["radius"], 30.0, 0.0001, "마커에 radius 기록")
+	assert_almost(_at(h, -60, 0), -13.0, 0.05, "중심 = 바닥")
+	assert_almost(_at(h, -60 + 27, 0), -13.0, 0.05, "바닥 평탄 = 반경 − 2 안")
+	assert_almost(_at(h, -60 + 31, 0), 9.0, 0.05, "반경 30 바로 밖 = 둑 꼭대기")
+	assert_almost(_at(h, -60 + 41, 0), 9.0, 0.05, "둑 폭 12")
+	assert_true(_at(h, -60 + 52, 0) < 8.9 and _at(h, -60 + 52, 0) > 5.1, "바깥 비탈")
+	assert_almost(_at(h, -60 + 62, 0), 5.0, 0.05, "비탈 끝 = 반경 + 30")
+	assert_almost(_at(h, 70 + 15, 0), 11.0, 0.05, "탑 섬 반경 20 안 윗면")
+	var d := _flat(5.0)
+	var lake2 := {"kind": "lake", "x": 0.0, "z": 0.0, "yaw": 0.0}
+	MapStamps.apply(d, S, W, [lake2])
+	assert_almost(lake2["radius"], 48.0, 0.0001, "기본 반경 48")
