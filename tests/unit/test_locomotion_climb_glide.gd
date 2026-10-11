@@ -212,3 +212,12 @@ func test_hop_then_glide_landing_clears_guard():          # 리뷰 Important 1: 
 	for i in 60:                                           # 1초: 재등반 금지(0.5s)는 이미 풀린 뒤
 		l.step(into_wall, wall, DT)
 	assert_eq(l.state, Locomotion.State.CLIMBING, "착지 후 벽을 잡을 수 있어야 함 (가드가 남아 있으면 실패)")
+
+func test_hop_guard_expires_without_landing():            # 경사에 착지(바닥 아님) 못 해도 1초 뒤엔 다시 잡을 수 있음
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
+	_hop(l)
+	for i in 70:                                          # 1.17s 공중, 벽 감지 없음
+		l.step(_intent(), air, DT)
+		l.velocity.y = maxf(l.velocity.y, -2.0)           # 경사를 미끄러지는 느린 낙하
+	l.step(_intent(Vector2(0, 1)), wall, DT)
+	assert_eq(l.state, Locomotion.State.CLIMBING)

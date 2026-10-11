@@ -55,3 +55,10 @@ func test_mesh_faces_up():
 	var f := HeightField.new(img, 4.0, -10.0, 60.0)
 	var normals: PackedVector3Array = TerrainMesh.build(f, 2.0, func(_h, _n): return Color.WHITE).surface_get_arrays(0)[Mesh.ARRAY_NORMAL]
 	assert_true(normals[0].y > 0.9, "앞면이 위를 향해야 위에서 보인다 (Godot 시계 방향 = 앞면)")
+
+func test_climbable_hysteresis_while_climbing():         # 경계 근처 경사에서 등반이 깜빡이지 않게
+	var n55 := Vector3(0, cos(deg_to_rad(55)), sin(deg_to_rad(55)))
+	assert_false(Locomotion.is_climbable(n55), "55°에서는 새로 시작하지 않음 (걸어서 오름)")
+	assert_true(Locomotion.is_climbable(n55, true), "이미 등반 중이면 55°에서도 계속 붙어 있음")
+	var n48 := Vector3(0, cos(deg_to_rad(48)), sin(deg_to_rad(48)))
+	assert_false(Locomotion.is_climbable(n48, true), "48°면 등반을 놓고 걷는다")

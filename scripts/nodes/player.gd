@@ -4,7 +4,11 @@ extends CharacterBody3D
 
 const GROUND_STICK_SPEED := 1.0     ## 지상에서 바닥에 붙어 있도록 주는 하향 속도
 const TURN_SPEED := 12.0
-const SAFE_GROUND_RADIUS := 3.0   ## 안전 지점 판정: 이 거리 사방에 바닥이 있어야 함
+const SAFE_GROUND_RADIUS := 3.0
+const LEDGE_PROBE_HEIGHT := 2.6     ## 올라설 곳 확인 레이 시작 높이 (발 기준)
+const LEDGE_PROBE_FORWARD := 0.9
+const LEDGE_PROBE_DEPTH := 2.2
+const STANDABLE_MIN_NORMAL_Y := 0.55   ## 약 57° 이하 = 걸어서 설 수 있는 면   ## 안전 지점 판정: 이 거리 사방에 바닥이 있어야 함
 
 @export var tuning: MovementTuning = preload("res://resources/movement_tuning.tres")
 @export var touch_controls: TouchControls
@@ -94,20 +98,32 @@ func _physics_process(delta: float) -> void:
 
 
 func _sense() -> Dictionary:
+	var climbing := locomotion.state == Locomotion.State.CLIMBING
 	var wall_normal := Vector3.ZERO
 	if _wall_ray.is_colliding():
 		var n := _wall_ray.get_collision_normal()
-		if Locomotion.is_climbable(n):
+		if Locomotion.is_climbable(n, climbing):
 			wall_normal = n
-	elif is_on_wall() and Locomotion.is_climbable(get_wall_normal()):
+	elif is_on_wall() and Locomotion.is_climbable(get_wall_normal(), climbing):
 		wall_normal = get_wall_normal()     # 가파른 지형 경사: 가슴 높이 레이가 경사면과 나란해 빗나갈 때
 	return {
 		"on_floor": is_on_floor(),
 		"wall_normal": wall_normal,
-		"ledge_top": locomotion.state == Locomotion.State.CLIMBING \
-				and _wall_ray.is_colliding() and not _head_ray.is_colliding(),
+		"ledge_top": climbing and _wall_ray.is_colliding() and not _head_ray.is_colliding() \
+				and _standable_above(wall_normal),
 		"water_depth": _water_depth(),
 	}
+
+
+## 올라설 곳이 있는가: 벽 너머 앞쪽 위에서 아래로 쏜 레이가 걸을 수 있는 면에 닿아야 한다.
+## (머리 레이만 보면 뒤로 누운 경사 중간에서 "꼭대기"로 잘못 판정해 도약이 나간다.)
+func _standable_above(wall_normal: Vector3) -> bool:
+	var into := Vector3(-wall_normal.x, 0.0, -wall_normal.z).normalized() if wall_normal != Vector3.ZERO else facing_forward()
+	var from := global_position + Vector3.UP * LEDGE_PROBE_HEIGHT + into * LEDGE_PROBE_FORWARD
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * LEDGE_PROBE_DEPTH)
+	query.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	return not hit.is_empty() and hit.normal.y >= STANDABLE_MIN_NORMAL_Y
 
 
 ## 발이 가장 깊이 잠긴 물의 깊이 (물 밖이면 -1).

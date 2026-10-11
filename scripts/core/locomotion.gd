@@ -10,6 +10,7 @@ const WALL_STICK_SPEED := 1.0    ## 등반 중 벽에 붙어 있도록 벽 방�
 const LEDGE_HOP_HEIGHT := 2.1    ## 벽 끝에서 올라설 때 솟는 높이 (m) — 끝 감지 레이(머리 1.7m)보다 높아야 발이 턱을 넘는다
 const LEDGE_HOP_FORWARD := 3.0   ## 올라설 때 벽 너머로 미는 속도
 const REGRAB_BLOCK_TIME := 0.5   ## 올라서기/벽 점프 직후 재등반 금지 시간 (s)
+const HOP_GUARD_MAX := 1.0          ## 올라서기 도약 후 착지를 못 해도(경사 등) 이 시간 뒤엔 다시 벽을 잡을 수 있다
 const HOP_REGRAB_FALL_SPEED := 12.0  ## 올라서기 도약 후 이보다 빨리 떨어지면(단을 놓침) 다시 벽을 잡을 수 있다
 const FLOAT_GAIN := 4.0          ## 수면 높이로 떠오르는 속도 계수
 const FLOAT_MAX_SPEED := 3.0
@@ -30,6 +31,7 @@ var _dodge_time := 0.0
 var _regrab_block := 0.0          ## > 0 이면 올라서기 도약 중 (재등반 금지 + 수평 속도 유지)
 var _climb_jumping := false       ## 벽 점프 직후: 카메라와 무관하게 위로 밀면 다시 붙는다
 var _hop_guard := false           ## 올라서기 도약 중: 착지할 때까지 다음 벽(계단식 탑의 윗단)을 잡지 않는다
+var _hop_time := 0.0
 var _dash := 0.0                  ## 수영 가속 남은 시간
 var _dash_dir := Vector3.ZERO
 var _drown := 0.0                 ## 물에서 탈진한 시간
@@ -43,6 +45,10 @@ func _init(tuning: MovementTuning, stamina: Stamina, combat := CombatTuning.new(
 
 func step(intent: InputIntent, sense: Dictionary, delta: float) -> Vector3:
 	_regrab_block = maxf(_regrab_block - delta, 0.0)
+	if _hop_guard:
+		_hop_time += delta
+		if _hop_time >= HOP_GUARD_MAX:
+			_hop_guard = false
 	var depth: float = sense.get("water_depth", 0.0)
 	if depth >= _t.swim_depth and state not in [State.SWIMMING, State.CLIMBING]:
 		_enter_swim()
@@ -174,6 +180,7 @@ func _step_climbing(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 		state = State.AIRBORNE
 		_regrab_block = REGRAB_BLOCK_TIME
 		_hop_guard = true
+		_hop_time = 0.0
 		return
 	if intent.jump_pressed:
 		_stamina.spend(_t.climb_jump_cost)
@@ -255,9 +262,10 @@ func move_dir(intent: InputIntent) -> Vector3:
 ## 오를 수 있는 면: 60° 이상 경사·수직 벽·약한 오버행. 천장은 불가.
 ## 60°까지는 걸어서 오른다 (Player floor_max_angle = 60°) → 걷기와 등반 사이 미끄럼 구간 없음.
 const CLIMB_MIN_SLOPE_COS := 0.51     ## cos 60° = 0.5, 경계에서 겹치게 약간 크게
+const CLIMB_KEEP_SLOPE_COS := 0.62    ## 이미 등반 중이면 약 52°까지 계속 붙어 있다 (경계 근처 깜빡임 방지)
 
-static func is_climbable(normal: Vector3) -> bool:
-	return normal.y < CLIMB_MIN_SLOPE_COS and normal.y > -0.3
+static func is_climbable(normal: Vector3, climbing := false) -> bool:
+	return normal.y < (CLIMB_KEEP_SLOPE_COS if climbing else CLIMB_MIN_SLOPE_COS) and normal.y > -0.3
 
 
 static func wants_run(intent: InputIntent, tuning: MovementTuning) -> bool:
