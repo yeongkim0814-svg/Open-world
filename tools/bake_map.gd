@@ -1,7 +1,8 @@
 extends SceneTree
 ## 색칠 지도 굽기. 사용: godot --headless -s tools/bake_map.gd -- <map>
 ## 읽기: res://maps/<map>/{height,zones,paths,markers}.png (zones·paths 는 없어도 됨)
-##       res://maps/<map>/map.json (선택): {"size", "world", "min_h", "max_h", "smooth_radius", "edge_sea"}
+##       res://maps/<map>/map.json (선택): {"size", "world", "min_h", "max_h", "smooth_radius", "edge_sea",
+##       "peak_height", "peak_radius", "summit_radius", "lake_radius", "tower_radius"}
 ##       size = 지도 이미지를 맞출 격자 크기 (기본 1024), world = 세계 폭 m (기본 1024)
 ## 쓰기: res://maps/<map>/baked/{height.png, zones.png, paths.png, markers.json, preview.png, meta.json}
 ## 오류가 있으면 메시지를 출력하고 종료 코드 1 (아무것도 쓰지 않음).
