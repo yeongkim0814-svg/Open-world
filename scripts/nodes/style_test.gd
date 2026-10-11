@@ -32,6 +32,7 @@ func _ready() -> void:
 	_noise.frequency = 0.04
 	field = HeightField.new(TestIslandGen.image(129, SEED), TestIslandGen.WORLD, TestIslandGen.MIN_H, TestIslandGen.MAX_H)
 	_build_environment()
+	_sync_sky()
 	_build_recovery()
 	_build_terrain()
 	_build_water()
@@ -119,7 +120,17 @@ func _build_environment() -> void:
 	_sun.shadow_enabled = true
 	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	_sun.directional_shadow_max_distance = 60.0
+	_sun.shadow_normal_bias = 3.0
 	add_child(_sun)
+
+
+## 하늘 지평선 = 안개색 (팔레트 한 곳에서), 천정 변화는 완만하게.
+func _sync_sky() -> void:
+	var sky_mat := _env.sky.sky_material as ShaderMaterial
+	for k in ["zenith", "horizon"]:
+		sky_mat.set_shader_parameter(k + "_depleted", StylePalette.DEPLETED["sky_" + k])
+		sky_mat.set_shader_parameter(k + "_restored", StylePalette.RESTORED["sky_" + k])
+	sky_mat.set_shader_parameter("horizon_sharpness", 5.0)
 
 
 func _build_recovery() -> void:
@@ -292,6 +303,8 @@ func _build_trees() -> void:
 	leaves.set_shader_parameter("density_depleted", 1.0)   # 나무는 회복 전에도 서 있다 (색·바람만 변화)
 	leaves.set_shader_parameter("height_depleted", 1.0)    # 잎이 줄기에서 떨어지지 않게
 	leaves.set_shader_parameter("wind_strength", 0.02)
+	leaves.set_shader_parameter("fade_start", 100000.0)
+	leaves.set_shader_parameter("fade_end", 100001.0)
 	var meshes := []
 	for kind in 3:
 		var m := TreeGen.build(SEED + kind * 7, kind)
@@ -328,14 +341,13 @@ func _build_grass() -> void:
 			var pz := z + _rng.randf_range(-0.35, 0.35) * step
 			var n := _noise.get_noise_2d(px * 1.7, pz * 1.7)
 			if n > -0.15 and _land_ok(px, pz, 0.8):
-				var kind := 2 if _rng.randf() < 0.08 else (1 if n > 0.25 else 0)
-				groups[kind].append(_xf(_ground(px, pz), _rng.randf_range(1.2, 2.0)))
+				var kind := 2 if _rng.randf() < 0.025 else (1 if n > 0.25 else 0)
+				groups[kind].append(_xf(_ground(px, pz), _rng.randf_range(0.9, 1.4)))
 			x += step
 		z += step
 	for k in 3:
 		var mmi := _multimesh(meshes[k], groups[k], true)
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mmi.visibility_range_end = 45.0
 
 
 # ---------- 폐허 ----------
@@ -359,7 +371,9 @@ func _place_part(mesh: ArrayMesh, mat: Material, xf: Transform3D) -> void:
 
 
 func _build_ruin() -> void:
-	var stone := _lit("ground", 0.78)
+	var stone := _lit("ground")
+	stone.set_shader_parameter("color_depleted", Color("#B9B3A6"))   # 폐허 돌: 절벽 회색과 구분되는 따뜻한 돌색
+	stone.set_shader_parameter("color_restored", Color("#B59D7A"))
 	var base := _ground(RUIN_POS.x, RUIN_POS.y)
 	var face := Basis(Vector3.UP, deg_to_rad(20.0))
 	_place_part(StructureGen.block(Vector3(10, 1.2, 8), 0.2, SEED, 0.3), stone, Transform3D(face, base + Vector3(0, -0.4, 0)))

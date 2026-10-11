@@ -17,6 +17,8 @@ uniform float wind_strength = 0.06;
 uniform float wind_speed = 1.2;
 uniform float density_depleted = 0.35;
 uniform float density_restored = 1.0;
+uniform float fade_start = 24.0;      // 카메라 거리 페이드 (풀: 먼 곳 반짝임·삼각형 줄이기, 나무는 크게)
+uniform float fade_end = 36.0;
 uniform float height_depleted = 0.6;   // 고갈 시 키 배율 (나무 잎은 1.0으로 둔다)
 
 varying vec3 v_world;
@@ -35,7 +37,8 @@ void vertex() {
 	p.x += sway * wind_strength * COLOR.g;
 	p.z += cos(ph * 0.8) * wind_strength * 0.6 * COLOR.g;
 
-	if (INSTANCE_CUSTOM.r > mix(density_depleted, density_restored, r)) {
+	float fade = 1.0 - smoothstep(fade_start, fade_end, distance(origin, CAMERA_POSITION_WORLD));
+	if (INSTANCE_CUSTOM.r > mix(density_depleted, density_restored, r) * fade) {
 		p = vec3(0.0);
 	}
 	VERTEX = p;

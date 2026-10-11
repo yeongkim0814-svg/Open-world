@@ -11,7 +11,7 @@ const DEPLETED := {
 	"water_shallow": Color("#9FB1B3"), "water_deep": Color("#6E8288"),
 }
 const RESTORED := {
-	"sky_zenith": Color("#4F86C0"), "sky_horizon": Color("#C6DDEC"),
+	"sky_zenith": Color("#4F86C0"), "sky_horizon": Color("#B7D3EA"),
 	"grass": Color("#6FA35A"), "grass_tip": Color("#9CC46E"),
 	"ground": Color("#B9A27E"), "sand": Color("#D9C9A0"), "rock": Color("#8E8A82"),
 	"foliage": Color("#6E9A6A"), "flower": Color("#EED36A"),
