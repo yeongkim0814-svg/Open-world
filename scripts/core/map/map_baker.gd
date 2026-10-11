@@ -1,14 +1,16 @@
 class_name MapBaker
 extends RefCounted
 ## 색칠 지도 이미지들 → 구운 데이터. 노드 비의존, 결정적 (같은 입력 = 같은 출력).
-## 파이프라인: 띠 → 높이 (HeightBands) → 표식 도장 (MapStamps) → 길 효과.
+## 파이프라인: 띠 → 높이 (HeightBands) → 표식 도장 (MapStamps) → 길 효과 (흙길·포장길 평탄화, 수로 파기) → 개천 파기.
 
-const H_MIN := -16.0
+const H_MIN := -16.0                 ## 구운 높이 범위 기본값 (cfg min_h·max_h 로 바꿈)
 const H_MAX := 90.0
 const PREVIEW_SIZE := 512
 const PATH_FLATTEN_HALF_M := 2.0     ## 길 가로 평균 반폭 (m)
 const PATH_FLATTEN_MAX := 0.5        ## 흙길·포장길이 지형을 바꾸는 최대 높이 (m)
 const AQUEDUCT_DIG := 1.5            ## 수로가 파내는 깊이 (m)
+const STREAM_DIG := 2.5              ## 개천 중앙 깊이 (m), V자로 가장자리 0
+const STREAM_SPREAD := 8             ## 개천 폭 추정: 중심선 거리를 퍼뜨리는 횟수 (칸)
 const DIR_WINDOW := 3                ## 길 방향 추정 창 반경 (px)
 const SMOOTH_RADIUS := 12.0
 const DETAIL := 1.5
@@ -20,12 +22,14 @@ const REQUIRED_LAYERS := ["height", "markers"]
 ## layers: {"height": Image, "zones": Image, "paths": Image, "markers": Image} (zones·paths 는 없어도 됨).
 ## 반환: {height: PackedFloat32Array(m), zones: PackedByteArray, paths: PackedByteArray,
 ##        markers: Array[Dictionary], errors: PackedStringArray, warnings: PackedStringArray, world: float}
+##        world: float, meta: {world, size, min_h, max_h}
+## cfg (모두 선택): smooth_radius (기본 12), edge_sea (기본 true), min_h·max_h (기본 −16·90, 높이 한계).
 ## errors 가 비어 있지 않으면 굽기 실패 (다른 값은 믿지 말 것).
-static func bake(layers: Dictionary, size := 1024, world := 1024.0) -> Dictionary:
+static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -> Dictionary:
 	var result := {
 		"height": PackedFloat32Array(), "zones": PackedByteArray(), "paths": PackedByteArray(),
 		"markers": [], "errors": PackedStringArray(), "warnings": PackedStringArray(),
-		"world": world,
+		"world": world, "meta": meta(cfg, size, world),
 	}
 	var errors: PackedStringArray = result["errors"]
 	for name in REQUIRED_LAYERS:
@@ -55,7 +59,7 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0) -> Dictionar
 	for i in size * size:
 		if bands[i] == MapLegend.CLIFF_INDEX:
 			cliff[i] = 1
-	var h := HeightBands.build(bands, size, cliff, SMOOTH_RADIUS, DETAIL, SEED)
+	var h := HeightBands.build(bands, size, cliff, float(cfg.get("smooth_radius", SMOOTH_RADIUS)), DETAIL, SEED, bool(cfg.get("edge_sea", true)))
 	MapStamps.apply(h, size, world, markers)
 
 	# 구역 (비어 있음 = 초원 0)
@@ -74,16 +78,28 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0) -> Dictionar
 		for i in size * size:
 			paths[i] = pl[i] + 1       # −1 → 0
 		_apply_paths(h, paths, size, world)
+		_dig_streams(h, paths, size)
 
+	var lo: float = result["meta"]["min_h"]
+	var hi: float = result["meta"]["max_h"]
 	for i in size * size:
-		h[i] = clampf(h[i], H_MIN, H_MAX)
+		h[i] = clampf(h[i], lo, hi)
 	result["height"] = h
 	result["zones"] = zones
 	result["paths"] = paths
 	return result
 
 
+## 구운 데이터 메타 (baked/meta.json): 게임이 world·높이 범위를 읽는다. world·size 는 인자가 우선.
+static func meta(cfg: Dictionary, size: int, world: float) -> Dictionary:
+	return {
+		"world": world, "size": size,
+		"min_h": float(cfg.get("min_h", H_MIN)), "max_h": float(cfg.get("max_h", H_MAX)),
+	}
+
+
 ## 흙길·포장길(1, 2): 길 방향의 수직으로 ±2m 평균에 다가감 (변화 ≤ 0.5m). 수로(3): 1.5m 파냄.
+## 개천(4)은 여기서 건드리지 않고 _dig_streams 가 맨 뒤에 판다.
 static func _apply_paths(h: PackedFloat32Array, paths: PackedByteArray, size: int, world: float) -> void:
 	var src := h.duplicate()
 	var k := float(size - 1) / world          # px / m
@@ -94,6 +110,8 @@ static func _apply_paths(h: PackedFloat32Array, paths: PackedByteArray, size: in
 			var i := y * size + x
 			var p := paths[i]
 			if p == 0:
+				continue
+			if p == 4:
 				continue
 			if p == 3:
 				h[i] = src[i] - AQUEDUCT_DIG
@@ -131,13 +149,90 @@ static func _apply_paths(h: PackedFloat32Array, paths: PackedByteArray, size: in
 			h[i] = src[i] + clampf(total / cnt - src[i], -PATH_FLATTEN_MAX, PATH_FLATTEN_MAX)
 
 
-## 높이 (m) → RGB8 16비트 (R 상위·G 하위). HeightField(img, world, −16, 90) 가 그대로 읽는다.
-static func encode_height(h: PackedFloat32Array, size: int) -> Image:
+## 개천(4): V자 파기. 깊이 = STREAM_DIG × (가장자리 거리 − 1) / (중심선 거리 − 1) — 중앙 −2.5m, 칠한 가장자리 0.
+## 가장자리 거리 = 개천 아닌 가장 가까운 칸까지 (3-4 체인퍼, 단위 1/3 칸). 중심선 거리 = 근처(STREAM_SPREAD 칸) 최댓값.
+## 개천 칸만 훑어 큰 지도에서도 빠르다. 도장·길 처리 뒤에 호출한다.
+static func _dig_streams(h: PackedFloat32Array, paths: PackedByteArray, size: int) -> void:
+	var cells := PackedInt32Array()
+	for i in size * size:
+		if paths[i] == 4:
+			cells.append(i)
+	if cells.is_empty():
+		return
+	var d := PackedInt32Array()
+	d.resize(size * size)       # 0 = 개천 아님 (가장자리 거리 0)
+	var big := 1 << 20
+	for i in cells:
+		d[i] = big
+	for i in cells:             # 앞 방향 (인덱스 오름차순)
+		var x := i % size
+		var v := d[i]
+		if x > 0:
+			v = mini(v, d[i - 1] + 3)
+		if i >= size:
+			v = mini(v, d[i - size] + 3)
+			if x > 0:
+				v = mini(v, d[i - size - 1] + 4)
+			if x < size - 1:
+				v = mini(v, d[i - size + 1] + 4)
+		d[i] = v
+	for ci in range(cells.size() - 1, -1, -1):     # 뒤 방향
+		var i := cells[ci]
+		var x := i % size
+		var v := d[i]
+		if x < size - 1:
+			v = mini(v, d[i + 1] + 3)
+		if i < size * (size - 1):
+			v = mini(v, d[i + size] + 3)
+			if x < size - 1:
+				v = mini(v, d[i + size + 1] + 4)
+			if x > 0:
+				v = mini(v, d[i + size - 1] + 4)
+		d[i] = v
+	# 지도 가장자리는 특별 취급 안 함 (밖으로 이어지는 개천은 가장자리에서 얕아지지 않는다)
+	# 중심선 거리: 이웃 8방향 최댓값을 STREAM_SPREAD 번 퍼뜨림 (개천 칸 안에서만)
+	var m := d.duplicate()
+	var nxt := d.duplicate()
+	for _it in STREAM_SPREAD:
+		for i in cells:
+			var x := i % size
+			var best := m[i]
+			if x > 0:
+				best = maxi(best, m[i - 1])
+				if i >= size:
+					best = maxi(best, m[i - size - 1])
+				if i < size * (size - 1):
+					best = maxi(best, m[i + size - 1])
+			if x < size - 1:
+				best = maxi(best, m[i + 1])
+				if i >= size:
+					best = maxi(best, m[i - size + 1])
+				if i < size * (size - 1):
+					best = maxi(best, m[i + size + 1])
+			if i >= size:
+				best = maxi(best, m[i - size])
+			if i < size * (size - 1):
+				best = maxi(best, m[i + size])
+			nxt[i] = best
+		var t := m
+		m = nxt
+		nxt = t
+	for i in cells:
+		var edge_d := d[i]
+		var centre := m[i]
+		var t := 1.0
+		if centre > 3:
+			t = clampf(float(edge_d - 3) / float(centre - 3), 0.0, 1.0)
+		h[i] -= STREAM_DIG * t
+
+
+## 높이 (m) → RGB8 16비트 (R 상위·G 하위). HeightField(img, world, min_h, max_h) 가 그대로 읽는다.
+static func encode_height(h: PackedFloat32Array, size: int, min_h := H_MIN, max_h := H_MAX) -> Image:
 	var data := PackedByteArray()
 	data.resize(size * size * 3)
-	var scale := 255.0 / (H_MAX - H_MIN)
+	var scale := 255.0 / (max_h - min_h)
 	for i in size * size:
-		var t := clampf((h[i] - H_MIN) * scale, 0.0, 255.0)
+		var t := clampf((h[i] - min_h) * scale, 0.0, 255.0)
 		var r := int(t)
 		var g := clampi(int(round((t - r) * 256.0)), 0, 255)
 		if r == 255:

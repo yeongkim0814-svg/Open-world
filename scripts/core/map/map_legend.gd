@@ -8,14 +8,14 @@ const WHITE_MIN := 235   ## 세 채널 모두 이 이상이면 흰 종이(비어
 
 ## 높이 띠 (순서 = 인덱스). 마지막 CLIFF_INDEX = 절벽 선 (높이 없음).
 const HEIGHT := [
-	{"color": Color8(0x1F, 0x3A, 0x5F), "name": "deep_sea", "h": -12.0},
-	{"color": Color8(0x4F, 0x81, 0xBD), "name": "shallow_sea", "h": -3.0},
+	{"color": Color8(0x1F, 0x3A, 0x5F), "name": "deep_sea", "h": -14.0},
+	{"color": Color8(0x4F, 0x81, 0xBD), "name": "shallow_sea", "h": -4.0},
 	{"color": Color8(0xF2, 0xE6, 0xB8), "name": "beach", "h": 1.0},
-	{"color": Color8(0x9B, 0xBB, 0x59), "name": "plain", "h": 4.0},
-	{"color": Color8(0xC4, 0xD7, 0x9B), "name": "hill", "h": 12.0},
-	{"color": Color8(0xE3, 0xB4, 0x6A), "name": "plateau", "h": 24.0},
-	{"color": Color8(0xB0, 0x7A, 0x4A), "name": "mountain", "h": 45.0},
-	{"color": Color8(0x7F, 0x6A, 0x93), "name": "high_mountain", "h": 75.0},
+	{"color": Color8(0x9B, 0xBB, 0x59), "name": "plain", "h": 6.0},
+	{"color": Color8(0xC4, 0xD7, 0x9B), "name": "hill", "h": 20.0},
+	{"color": Color8(0xE3, 0xB4, 0x6A), "name": "plateau", "h": 45.0},
+	{"color": Color8(0xB0, 0x7A, 0x4A), "name": "mountain", "h": 90.0},
+	{"color": Color8(0x7F, 0x6A, 0x93), "name": "high_mountain", "h": 160.0},
 ]
 const CLIFF := Color8(0xE0, 0x21, 0x8A)
 const CLIFF_INDEX := 8
@@ -36,6 +36,7 @@ const PATHS := [
 	{"color": Color8(0x8B, 0x5A, 0x2B), "name": "dirt"},
 	{"color": Color8(0x40, 0x40, 0x40), "name": "paved"},
 	{"color": Color8(0x2E, 0x75, 0xB6), "name": "aqueduct"},
+	{"color": Color8(0x6F, 0xA8, 0xDC), "name": "stream"},      ## 개천 (마른 물길, 구운 값 4)
 ]
 
 const MARKERS := {
@@ -43,7 +44,8 @@ const MARKERS := {
 	"tower": Color8(0xFF, 0x00, 0x00),
 	"lake": Color8(0x00, 0xB0, 0xF0),
 	"sluice": Color8(0xFF, 0x8C, 0x00),
-	"village": Color8(0xFF, 0xFF, 0x00),
+	"village": Color8(0xFF, 0xFF, 0x00),        ## 해안 마을 (평탄화)
+	"hill_village": Color8(0xFF, 0xC0, 0x00),   ## 산마을 (도장 없음)
 	"ruin": Color8(0x70, 0x30, 0xA0),
 	"lookout": Color8(0xFF, 0x66, 0xCC),
 	"bridge": Color8(0x00, 0xFF, 0x00),
