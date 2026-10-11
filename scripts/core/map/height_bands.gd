@@ -5,7 +5,7 @@ extends RefCounted
 ##       → 장벽을 넘지 않는 상자 평활화 3회 → 저주파 굴곡(바다·절벽 근처는 0).
 
 const EDGE_M := 32.0            ## 가장자리 깊은 바다 폭 (1024 기준 px, 크기에 비례)
-const DEEP_SEA := -12.0
+const DEEP_SEA := -14.0
 const BARRIER_GROW := 2         ## 절벽 선 팽창 (px) — 선이 끊겨도 평활화가 새지 않게
 const PASSES := 3
 const NOISE_PERIOD := 40.0      ## 굴곡 주기 (px)
@@ -14,14 +14,16 @@ const DETAIL_FADE_FAR := 12.0   ## 이 거리 밖은 굴곡 전체
 
 
 ## bands: 높이 팔레트 인덱스(0~7 = 띠, 그 외/−1 = 비어 있음), cliff: 1 = 절벽 선 칸. 반환: 행 우선 높이 (m).
+## edge_sea = false 이면 강제 깊은 바다 테두리를 만들지 않는다 (칠한 곳만 바다).
 ## 평활화 한 번의 상자 반경 = smooth_radius / 2 (3회 반복 → 실효 퍼짐 ≈ 0.54 × smooth_radius 표준편차).
-static func build(bands: PackedInt32Array, size: int, cliff: PackedByteArray, smooth_radius := 12.0, detail := 1.5, seed := 1) -> PackedFloat32Array:
+static func build(bands: PackedInt32Array, size: int, cliff: PackedByteArray, smooth_radius := 12.0, detail := 1.5, seed := 1, edge_sea := true) -> PackedFloat32Array:
 	var n := size * size
 	var h := _fill_targets(bands, size)
 
 	# 가장자리 깊은 바다
 	var edge := maxi(1, int(round(EDGE_M * size / 1024.0)))
-	_stamp_edge(h, size, edge)
+	if edge_sea:
+		_stamp_edge(h, size, edge)
 
 	# 절벽 장벽
 	var barrier := _dilate(cliff, size, BARRIER_GROW)
@@ -34,7 +36,8 @@ static func build(bands: PackedInt32Array, size: int, cliff: PackedByteArray, sm
 		for _p in PASSES:
 			_blur_lines(h, tmp, size, barrier, r, size, 1)     # 가로
 			_blur_lines(tmp, h, size, barrier, r, 1, size)     # 세로
-		_stamp_edge(h, size, edge)
+		if edge_sea:
+			_stamp_edge(h, size, edge)
 
 	# 굴곡
 	if detail > 0.0:
