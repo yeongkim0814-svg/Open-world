@@ -214,10 +214,12 @@ func _multimesh(mesh: Mesh, xforms: Array, custom := false) -> MultiMeshInstance
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_custom_data = custom
+	mm.use_colors = true   # 끄면 인스턴스 색이 정점색을 곱해 어두워진다
 	mm.mesh = mesh
 	mm.instance_count = xforms.size()
 	for i in xforms.size():
 		mm.set_instance_transform(i, xforms[i])
+		mm.set_instance_color(i, Color.WHITE)
 		if custom:
 			mm.set_instance_custom_data(i, Color(_rng.randf(), 0.0, 0.0, 0.0))
 	var mmi := MultiMeshInstance3D.new()
@@ -281,6 +283,8 @@ func _build_trees() -> void:
 	var trunk := _lit("ground", 0.55)
 	var leaves := _foliage("foliage", "grass_tip")
 	leaves.set_shader_parameter("density_depleted", 1.0)   # 나무는 회복 전에도 서 있다 (색·바람만 변화)
+	leaves.set_shader_parameter("height_depleted", 1.0)    # 잎이 줄기에서 떨어지지 않게
+	leaves.set_shader_parameter("wind_strength", 0.02)
 	var meshes := []
 	for kind in 3:
 		var m := TreeGen.build(SEED + kind * 7, kind)
