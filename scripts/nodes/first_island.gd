@@ -4,9 +4,17 @@ extends Node3D
 
 const RECOVERY_RADIUS := 220.0
 const RECOVERY_TIME := 6.0
-const CLEAR_SKY_TOP := Color("#7EC3EA")
-const CLEAR_HORIZON := Color(0.78, 0.86, 0.9)
-const CLEAR_FOG := Color(0.78, 0.86, 0.9)
+## 안개 두 세트 (흐림 = vitality_global 0, 맑음 = 1). apply_vitality_global()이 보간한다.
+const FOG_GREY := {
+	"fog_light_color": Color(0.66, 0.68, 0.7), "fog_density": 0.0007, "fog_height_density": 0.05,
+	"volumetric_fog_density": 0.003, "volumetric_fog_albedo": Color(0.8, 0.82, 0.85),
+}
+const FOG_CLEAR := {
+	"fog_light_color": Color(0.75, 0.84, 0.92), "fog_density": 0.0005, "fog_height_density": 0.03,
+	"volumetric_fog_density": 0.001, "volumetric_fog_albedo": Color(0.9, 0.94, 1.0),
+}
+const SUN_ENERGY_GREY := 1.6
+const SUN_ENERGY_CLEAR := 1.6
 
 var state := WorldState.new()
 var vitality_radius := 0.0
@@ -17,6 +25,7 @@ var vitality_radius := 0.0
 func _ready() -> void:
 	add_to_group("world")
 	RenderingServer.global_shader_parameter_set("vitality_radius", 0.0)
+	apply_vitality_global(1.0 if state.tower_stopped else 0.0)
 	apply_state()
 
 
@@ -47,11 +56,7 @@ func stop_tower() -> void:
 	tween.tween_method(_set_vitality, 0.0, RECOVERY_RADIUS, RECOVERY_TIME).set_trans(Tween.TRANS_SINE)
 	var cloud_mat: StandardMaterial3D = (tower.get_node("Cloud") as MeshInstance3D).mesh.material
 	tween.tween_property(cloud_mat, "albedo_color:a", 0.0, RECOVERY_TIME * 0.5)
-	var env: Environment = $WorldEnvironment.environment
-	var sky: ProceduralSkyMaterial = env.sky.sky_material
-	tween.tween_property(sky, "sky_top_color", CLEAR_SKY_TOP, RECOVERY_TIME)
-	tween.tween_property(sky, "sky_horizon_color", CLEAR_HORIZON, RECOVERY_TIME)
-	tween.tween_property(env, "fog_light_color", CLEAR_FOG, RECOVERY_TIME)
+	tween.tween_method(apply_vitality_global, 0.0, 1.0, RECOVERY_TIME).set_trans(Tween.TRANS_SINE)
 	for m in get_tree().get_nodes_in_group("enemy"):
 		if m.has_method("deactivate"):
 			m.deactivate()
@@ -60,6 +65,17 @@ func stop_tower() -> void:
 func _set_vitality(r: float) -> void:
 	vitality_radius = r
 	RenderingServer.global_shader_parameter_set("vitality_radius", r)
+
+
+## 하늘·안개처럼 위치 없는 요소의 회복 정도 (0 흐림 ↔ 1 맑음). 하늘 셰이더는 전역 vitality_global을 읽는다.
+func apply_vitality_global(v: float) -> void:
+	RenderingServer.global_shader_parameter_set("vitality_global", v)
+	var env: Environment = $WorldEnvironment.environment
+	for k in FOG_GREY:
+		env.set(k, lerp(FOG_GREY[k], FOG_CLEAR[k], v))
+	var sun := get_node_or_null("Sun") as DirectionalLight3D
+	if sun:
+		sun.light_energy = lerpf(SUN_ENERGY_GREY, SUN_ENERGY_CLEAR, v)
 
 
 func status_text() -> String:
