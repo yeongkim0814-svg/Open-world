@@ -3,3 +3,5 @@
 export_presets.cfg
 # 일회용 헤드리스 프로브 스크립트 (커밋하지 않음)
 tests/_*
+# 에이전트 임시 작업 트리
+.claude/worktrees/
