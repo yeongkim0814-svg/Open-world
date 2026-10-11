@@ -1,11 +1,24 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/nodes/tower_core.gd" id="1"]
 [ext_resource type="Shader" path="res://shaders/vitality.gdshader" id="2"]
+[ext_resource type="Shader" path="res://shaders/structure.gdshader" id="3"]
+[ext_resource type="Texture2D" path="res://assets/textures/terrain/rock_diff.jpg" id="6"]
+[ext_resource type="Texture2D" path="res://assets/textures/terrain/rock_nor.jpg" id="7"]
+[ext_resource type="Texture2D" path="res://assets/textures/terrain/rock_arm.jpg" id="8"]
 
 [sub_resource type="ShaderMaterial" id="Metal"]
-shader = ExtResource("2")
-shader_parameter/albedo = Color(0.32, 0.33, 0.38, 1)
+shader = ExtResource("3")
+shader_parameter/tex_diff = ExtResource("6")
+shader_parameter/tex_nor = ExtResource("7")
+shader_parameter/tex_arm = ExtResource("8")
+shader_parameter/tint = Color(0.36, 0.37, 0.4, 1)
+shader_parameter/detail = 0.85
+shader_parameter/tile = 5.0
+shader_parameter/metallic = 0.25
+shader_parameter/roughness_min = 0.45
+shader_parameter/grime = 0.35
+shader_parameter/grime_scale = 8.0
 
 [sub_resource type="ShaderMaterial" id="CoreMat"]
 shader = ExtResource("2")

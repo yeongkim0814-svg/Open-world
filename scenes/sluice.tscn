@@ -1,11 +1,40 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/nodes/sluice.gd" id="1"]
 [ext_resource type="Shader" path="res://shaders/vitality.gdshader" id="2"]
+[ext_resource type="Shader" path="res://shaders/structure.gdshader" id="3"]
+[ext_resource type="Texture2D" path="res://assets/textures/terrain/rock_diff.jpg" id="4"]
+[ext_resource type="Texture2D" path="res://assets/textures/terrain/rock_nor.jpg" id="5"]
+[ext_resource type="Texture2D" path="res://assets/textures/terrain/rock_arm.jpg" id="6"]
 
 [sub_resource type="ShaderMaterial" id="Metal"]
-shader = ExtResource("2")
-shader_parameter/albedo = Color(0.42, 0.45, 0.5, 1)
+shader = ExtResource("3")
+shader_parameter/tex_diff = ExtResource("4")
+shader_parameter/tex_nor = ExtResource("5")
+shader_parameter/tex_arm = ExtResource("6")
+shader_parameter/tint = Color(0.42, 0.42, 0.42, 1)
+shader_parameter/detail = 0.7
+shader_parameter/tile = 1.5
+shader_parameter/normal_strength = 0.6
+shader_parameter/metallic = 0.2
+shader_parameter/roughness_min = 0.55
+shader_parameter/grime = 0.4
+shader_parameter/grime_scale = 1.5
+
+[sub_resource type="ShaderMaterial" id="GateMetal"]
+shader = ExtResource("3")
+shader_parameter/tex_diff = ExtResource("4")
+shader_parameter/tex_nor = ExtResource("5")
+shader_parameter/tex_arm = ExtResource("6")
+shader_parameter/tint = Color(0.42, 0.42, 0.42, 1)
+shader_parameter/detail = 0.7
+shader_parameter/tile = 1.5
+shader_parameter/normal_strength = 0.6
+shader_parameter/metallic = 0.2
+shader_parameter/roughness_min = 0.55
+shader_parameter/grime = 0.4
+shader_parameter/grime_scale = 1.5
+shader_parameter/object_space = true
 
 [sub_resource type="ShaderMaterial" id="Core"]
 shader = ExtResource("2")
@@ -45,7 +74,7 @@ surface_material_override/0 = SubResource("Metal")
 [node name="Gate" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 mesh = SubResource("GateMesh")
-surface_material_override/0 = SubResource("Metal")
+surface_material_override/0 = SubResource("GateMetal")
 
 [node name="Lamp" type="MeshInstance3D" parent="Gate"]
 transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 1, 0.25)
