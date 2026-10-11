@@ -6,8 +6,9 @@ extends RefCounted
 const H_MIN := -16.0                 ## 구운 높이 범위 기본값 (cfg min_h·max_h 로 바꿈)
 const H_MAX := 90.0
 const PREVIEW_SIZE := 512
-const PATH_FLATTEN_HALF_M := 2.0     ## 길 가로 평균 반폭 (m)
-const PATH_FLATTEN_MAX := 0.5        ## 흙길·포장길이 지형을 바꾸는 최대 높이 (m)
+const PATH_CROSS_M := 4.0           ## 길 가로 단면을 재는 반폭 (m): 이 안의 길 칸 평균 = 길바닥 높이
+const PATH_CUT_MAX := 3.0            ## 길바닥이 깎거나 메우는 최대 높이 (m) — 넘으면 그만큼만 (아주 가파른 곳)
+const PATH_SHOULDER_M := 5.0         ## 길섶: 길 옆에서 원지형으로 이어지는 폭 (m) — 오르막 쪽은 깎인 둑, 내리막 쪽은 메운 둑
 const AQUEDUCT_DIG := 1.5            ## 수로가 파내는 깊이 (m)
 const STREAM_DIG := 2.5              ## 개천 중앙 깊이 (m), V자로 가장자리 0
 const STREAM_SPREAD := 8             ## 개천 폭 추정: 중심선 거리를 퍼뜨리는 횟수 (칸)
@@ -101,23 +102,29 @@ static func meta(cfg: Dictionary, size: int, world: float) -> Dictionary:
 	}
 
 
-## 흙길·포장길(1, 2): 길 방향의 수직으로 ±2m 평균에 다가감 (변화 ≤ 0.5m). 수로(3): 1.5m 파냄.
-## 개천(4)은 여기서 건드리지 않고 _dig_streams 가 맨 뒤에 판다.
+## 흙길·포장길(1, 2): 비탈을 깎고 메워 가로로 수평인 길바닥을 만든다 (길 방향으로는 지형을 따라 오르내림).
+## 길바닥 높이 = 길 방향의 수직선 위 ±PATH_CROSS_M 안 길 칸들의 원지형 평균 (변화 ≤ PATH_CUT_MAX).
+## 길섶 PATH_SHOULDER_M: 가장 가까운 길 칸 높이 → 원지형으로 부드럽게 (개천·수로 칸은 건드리지 않음).
+## 수로(3): 1.5m 파냄. 개천(4)은 _dig_streams 가 맨 뒤에 판다.
 static func _apply_paths(h: PackedFloat32Array, paths: PackedByteArray, size: int, world: float) -> void:
 	var src := h.duplicate()
 	var k := float(size - 1) / world          # px / m
-	var half_steps := int(ceil(PATH_FLATTEN_HALF_M * k))
-	var step_px := PATH_FLATTEN_HALF_M * k / maxf(half_steps, 1)
+	var cross_steps := int(ceil(PATH_CROSS_M * k * 2.0))
+	var step_px := PATH_CROSS_M * k / maxf(cross_steps, 1)
+	var big := 1 << 28
+	var dist := PackedInt32Array()            # 길섶 거리 (1/3 칸 단위, 3-4 체인퍼), 길 칸 = 0
+	dist.resize(size * size)
+	dist.fill(big)
+	var target := PackedFloat32Array()        # 가장 가까운 길 칸의 길바닥 높이
+	target.resize(size * size)
 	for y in size:
 		for x in size:
 			var i := y * size + x
 			var p := paths[i]
-			if p == 0:
-				continue
-			if p == 4:
-				continue
 			if p == 3:
 				h[i] = src[i] - AQUEDUCT_DIG
+				continue
+			if p != 1 and p != 2:
 				continue
 			# 길 방향 = 같은 종류(흙길·포장길) 칸들의 주축
 			var n := 0
@@ -144,12 +151,52 @@ static func _apply_paths(h: PackedFloat32Array, paths: PackedByteArray, size: in
 				ay = cos(theta)
 			var total := 0.0
 			var cnt := 0
-			for s in range(-half_steps, half_steps + 1):
-				var sxp := clampi(int(round(x + ax * s * step_px)), 0, size - 1)
-				var syp := clampi(int(round(y + ay * s * step_px)), 0, size - 1)
-				total += src[syp * size + sxp]
-				cnt += 1
-			h[i] = src[i] + clampf(total / cnt - src[i], -PATH_FLATTEN_MAX, PATH_FLATTEN_MAX)
+			var last := -1
+			for st in range(-cross_steps, cross_steps + 1):
+				var sxp := clampi(int(round(x + ax * st * step_px)), 0, size - 1)
+				var syp := clampi(int(round(y + ay * st * step_px)), 0, size - 1)
+				var si := syp * size + sxp
+				if si == last:
+					continue      # 같은 칸을 두 번 세지 않음 (단면 위치마다 가중치가 달라지면 길이 기움)
+				last = si
+				var q := paths[si]
+				if q == 1 or q == 2:
+					total += src[syp * size + sxp]
+					cnt += 1
+			var t := src[i] + clampf(total / maxi(cnt, 1) - src[i], -PATH_CUT_MAX, PATH_CUT_MAX)
+			h[i] = t
+			target[i] = t
+			dist[i] = 0
+	# 길섶: 거리·길바닥 높이를 함께 퍼뜨린다 (앞·뒤 두 번)
+	var lim := int(ceil(PATH_SHOULDER_M * k)) * 3 + 4
+	for pass_i in 2:
+		var y0 := 0 if pass_i == 0 else size - 1
+		var y1 := size if pass_i == 0 else -1
+		var sgn := 1 if pass_i == 0 else -1
+		var y := y0
+		while y != y1:
+			var x := 0 if pass_i == 0 else size - 1
+			while x >= 0 and x < size:
+				var i := y * size + x
+				if dist[i] != 0:
+					for o: Vector3i in [Vector3i(-sgn, 0, 3), Vector3i(0, -sgn, 3), Vector3i(-sgn, -sgn, 4), Vector3i(sgn, -sgn, 4)]:
+						var nx := x + o.x
+						var ny := y + o.y
+						if nx < 0 or nx >= size or ny < 0 or ny >= size:
+							continue
+						var j := ny * size + nx
+						if dist[j] + o.z < dist[i] and dist[j] + o.z <= lim:
+							dist[i] = dist[j] + o.z
+							target[i] = target[j]
+				x += sgn
+			y += sgn
+	var shoulder_px := PATH_SHOULDER_M * k
+	for i in size * size:
+		var p := paths[i]
+		if p != 0 or dist[i] == 0 or dist[i] >= big:
+			continue
+		var w := smoothstep(0.0, 1.0, (dist[i] / 3.0) / shoulder_px)
+		h[i] = lerpf(target[i], src[i], w)
 
 
 ## 개천(4): V자 파기. 깊이 = STREAM_DIG × (가장자리 거리 − 1) / (중심선 거리 − 1) — 중앙 −2.5m, 칠한 가장자리 0.

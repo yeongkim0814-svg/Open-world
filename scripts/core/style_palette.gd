@@ -20,7 +20,7 @@ const RESTORED := {
 	"ground": Color("#B9A27E"), "sand": Color("#D9C9A0"), "rock": Color("#8E8A82"),
 	"foliage": Color("#6E9A6A"), "flower": Color("#EED36A"),
 	"water_shallow": Color("#6FB8B9"), "water_deep": Color("#2F6F8F"),
-	"zone_broadleaf": Color("#557E45"), "zone_conifer": Color("#4B6B45"), "zone_wetland": Color("#5E8F6E"),
+	"zone_broadleaf": Color("#5F9450"), "zone_conifer": Color("#4B6B45"), "zone_wetland": Color("#5E8F6E"),
 	"zone_highland": Color("#8E8C7A"), "zone_wasteland": Color("#7FA85A"),   # 황무지는 회복하면 초원 쪽 초록
 	"path_dirt": Color("#A0855E"), "path_paved": Color("#9C978C"),
 }

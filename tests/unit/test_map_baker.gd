@@ -75,12 +75,18 @@ func test_path_dig_and_flatten():
 	var base_range := absf(base[(S / 2 - 2) * S + x] - base[(S / 2 + 2) * S + x])
 	var new_range := absf(h[(S / 2 - 2) * S + x] - h[(S / 2 + 2) * S + x])
 	assert_true(base_range > 0.3, "비탈 확인 %.3f" % base_range)
-	assert_true(new_range < base_range, "길 가로 편차 줄어듦 %.3f < %.3f" % [new_range, base_range])
+	assert_true(new_range < 0.15, "길 가로는 수평 (깎고 메운 길바닥): %.3f (원래 %.3f)" % [new_range, base_range])
 	var worst := 0.0
 	for j in range(S / 2 - 2, S / 2 + 3):
 		for i in range(150, 210):
 			worst = maxf(worst, absf(h[j * S + i] - base[j * S + i]))
-	assert_true(worst <= 0.5 + 0.001, "흙길 변화 ≤ 0.5m: %.3f" % worst)
+	assert_true(worst <= MapBaker.PATH_CUT_MAX + 0.001, "흙길 변화 ≤ %.1fm: %.3f" % [MapBaker.PATH_CUT_MAX, worst])
+	# 길섶: 길 옆 SHOULDER 안에서 원지형으로 이어지고, 그 밖은 그대로
+	var far := S / 2 + 2 + int(MapBaker.PATH_SHOULDER_M) + 2
+	assert_almost(h[far * S + x], base[far * S + x], 0.001, "길섶 밖은 그대로")
+	var near := S / 2 + 3
+	var t_road := h[(S / 2 + 2) * S + x]
+	assert_true(absf(h[near * S + x] - t_road) < absf(base[near * S + x] - t_road), "길 바로 옆은 길 높이 쪽으로")
 	assert_almost(base[190 * S + 101] - h[190 * S + 101], 1.5, 0.001, "수로 1.5m 파냄")
 	assert_almost(h[190 * S + 110], base[190 * S + 110], 0.001, "수로 밖은 그대로")
 
