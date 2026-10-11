@@ -30,6 +30,18 @@ textures/vram_compression/import_etc2_astc=true
 
 [shader_globals]
 
+recovery_map={
+"type": "sampler2D",
+"value": ""
+}
+recovery_map_rect={
+"type": "vec4",
+"value": Vector4(-256, -256, 512, 512)
+}
+recovery_here={
+"type": "float",
+"value": 0.0
+}
 vitality_center={
 "type": "vec3",
 "value": Vector3(0, 0, -10)
