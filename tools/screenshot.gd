@@ -21,7 +21,8 @@ const SCENES := {
 	"island_1km": {
 		"start": [Vector3(690, 2.5, 705), Vector3(300, 40, 300)],
 		"village": [Vector3(520, 6, 790), Vector3(430, 5, 650)],
-		"lake": [Vector3(100, 18, -110), Vector3(26, -10, -173)],
+		"lake": [Vector3(-110, 6, -150), Vector3(26, 30, -173)],
+		"mountain": [Vector3(520, 3, 330), Vector3(26, 200, -190)],
 		"summit": [Vector3(-60, 3, 260), Vector3(20, 60, -120)],
 		"air": [Vector3(1000, 520, 1150), Vector3(0, 0, -100)],
 	},

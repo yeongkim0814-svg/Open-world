@@ -29,7 +29,10 @@ const GAP_COUNT := 3
 const GAP_FULL_HALF := 0.1222       ## 틈 완전 경사로 반각 (7도)
 const GAP_BLEND := 0.0524           ## 틈 가장자리 전이 (3도)
 const SUMMIT_FADE := 100.0          ## 정상 평탄 보정(원지형 → 기준 높이)이 사라지는 거리
-const FALL_POWER := 1.8             ## 절벽 아래 오목한 비탈 지수
+const FALL_POWER := 1.3             ## 절벽 아래 오목한 비탈 지수 (1.3: 절벽 바로 아래 약 30도)
+const SPUR_SLOPE := 0.577           ## 틈 경사로 기울기 (tan 30도): 절벽대 안에서만
+const SPUR_FLANK := 0.84            ## 지맥 옆면 기울기 (tan 40도)
+const SPUR_LEN := 220.0             ## 절벽대 아래 틈 능선(지맥)이 원래 비탈로 녹아드는 거리 (m)
 const RIDGE_AMP := 16.0             ## 방사형 능선·골짜기 최대 진폭 (m)
 const RIDGE_FADE_IN := 90.0
 const ANGLE_STEPS := 1440
@@ -243,6 +246,7 @@ static func _stamp_peak(h: PackedFloat32Array, size: int, world: float, m: Dicti
 	var fall0 := top - drop                            # 절벽 아래에서 더하는 양
 	var span := maxf(peak_r - summit_r, 1.0)
 	var fall_span := maxf(peak_r - cliff_end, 1.0)
+	var spur0 := maxf(drop - SPUR_SLOPE * CLIFF_WIDTH, 0.0)   # 절벽대 끝에서 지맥이 비탈보다 높은 양
 	var n := float(ANGLE_STEPS)
 	for pz in range(b.position.y, b.end.y):
 		var dz := _w(pz, size, world) - cz
@@ -266,8 +270,21 @@ static func _stamp_peak(h: PackedFloat32Array, size: int, world: float, m: Dicti
 				a_cliff = top - drop * (d - summit_r) / CLIFF_WIDTH
 			else:
 				a_cliff = fall0 * pow(1.0 - (d - cliff_end) / fall_span, FALL_POWER)
-			var a_gap := top * (1.0 - (d - summit_r) / span)
-			var add := lerpf(a_cliff, a_gap, gw)
+			# 틈 = 정상에서 내려오는 지맥: 절벽대 안에서는 30도 경사로, 그 아래는 SPUR_LEN 동안 원래 비탈로 녹아든다
+			var a_gap: float
+			if d < cliff_end:
+				a_gap = top - SPUR_SLOPE * (d - summit_r)
+			else:
+				var e := spur0 * (1.0 - smoothstep(cliff_end, cliff_end + SPUR_LEN, d))
+				a_gap = a_cliff + e
+				# 절벽대 아래 지맥 옆면은 약 40도로 넓힌다 (칼날 능선 금지)
+				var dd := PI
+				for g in gaps:
+					dd = minf(dd, absf(wrapf(atan2(dz, dx) - g + PI, 0.0, TAU) - PI))
+				var full_m := GAP_FULL_HALF * d
+				var blend_m := GAP_BLEND * d + e / SPUR_FLANK * smoothstep(cliff_end, cliff_end + 40.0, d)
+				gw = 1.0 - smoothstep(full_m, full_m + blend_m, dd * d)
+			var add := lerpf(a_cliff, maxf(a_cliff, a_gap), gw)
 			var amp := RIDGE_AMP * smoothstep(cliff_end, cliff_end + RIDGE_FADE_IN, d) * (1.0 - (d - summit_r) / span)
 			if amp > 0.0:
 				add += amp * lerpf(noise[k0], noise[k1], f)

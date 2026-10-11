@@ -96,3 +96,14 @@ func test_peak_adds_to_painted_steps():
 	assert_almost(_at(step, 400, 100) - _at(flat, 400, 100), 20.0, 0.01)
 	assert_almost(_at(step, -420, 0) - _at(flat, -420, 0), 0.0, 0.01, "단차 없는 쪽은 같음")
 	assert_true(_at(flat, 420, 0) > 45.0 + 5.0, "비탈이 원지형에 더해짐")
+
+## 틈 지맥은 절벽대 아래 SPUR_LEN 안에서 원래 비탈로 녹아든다 (반경 전체를 가르는 직선 경사로 = 판자 금지).
+func test_peak_gap_spur_fades():
+	var h := _flat(5.0)
+	var m := _peak()
+	MapStamps.apply(h, S, W, [m], {})
+	var d := MapStamps.SUMMIT_RADIUS + MapStamps.CLIFF_WIDTH + MapStamps.SPUR_LEN + 40.0
+	for g in m["gaps"]:
+		var side := (_at(h, d * cos(g - 0.35), d * sin(g - 0.35)) + _at(h, d * cos(g + 0.35), d * sin(g + 0.35))) * 0.5
+		var mid := _at(h, d * cos(g), d * sin(g))
+		assert_true(absf(mid - side) < 15.0, "틈 %.0f도 d=%.0f: 지맥 %.1f vs 옆 %.1f" % [rad_to_deg(g), d, mid, side])

@@ -90,6 +90,24 @@ def clean_height(im):
                 votes.pop(ci, None)
                 k = votes.most_common(1)[0][0] if votes else ip[x, y]
             op[x, y] = H[names[k]]
+    # 해안 절벽 선 바깥(바다 쪽)에 남은 1~2px 띠 조각 = 절벽과 바다 사이 지느러미 벽이 됨 → 바다로
+    sea = (names.index("deep"), names.index("shal"))
+    fix = []
+    for y in range(N):
+        for x in range(N):
+            if ip[x, y] in sea or ip[x, y] == ci:
+                continue
+            near_cliff = near_sea = None
+            for dx in range(-4, 5):
+                for dy in range(-4, 5):
+                    v = ip[min(max(x + dx, 0), N - 1), min(max(y + dy, 0), N - 1)]
+                    if v == ci: near_cliff = True
+                    elif v in sea: near_sea = v
+            if near_cliff and near_sea is not None:
+                fix.append((x, y, near_sea))
+    for x, y, v in fix:
+        op[x, y] = H[names[v]]
+    print("coast slivers -> sea", len(fix))
     return out
 
 

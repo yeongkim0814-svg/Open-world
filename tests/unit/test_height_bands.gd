@@ -95,3 +95,26 @@ func test_edge_sea_default_on():
 	var a := HeightBands.build(_filled(3), S, _no_cliff(), 12.0, 0.0, 1)
 	var b := HeightBands.build(_filled(3), S, _no_cliff(), 12.0, 0.0, 1, true)
 	assert_eq(a, b)
+
+## A3 지느러미: 해변(좁은 띠)과 바다 사이 절벽 선 칸이, 뒤쪽 고원 값을 그대로 받아 양옆보다 높은 벽으로 남으면 안 된다.
+## 절벽 칸 높이 ≤ 3칸 안 절벽 아닌 이웃 중 가장 높은 값.
+func test_cliff_cells_not_above_neighbours():
+	var s := 64
+	var bands := PackedInt32Array(); bands.resize(s * s)
+	var cliff := PackedByteArray(); cliff.resize(s * s)
+	for y in s:
+		for x in s:
+			var b := 5 if x < 26 else (2 if x < 29 else 0)    # 고원 | 좁은 해변 3칸 | 깊은 바다
+			bands[y * s + x] = b
+			if x >= 29 and x < 32:
+				cliff[y * s + x] = 1; bands[y * s + x] = -1   # 해변과 바다 사이 절벽 선 (칠한 띠 없음)
+	var h := HeightBands.build(bands, s, cliff, 24.0, 0.0, 1, false)
+	for y in range(8, s - 8):
+		for x in range(27, 34):
+			if cliff[y * s + x] == 1:
+				var top := -INF
+				for dx in range(-5, 6):
+					var xx := x + dx
+					if xx >= 0 and xx < s and cliff[y * s + xx] == 0:
+						top = maxf(top, h[y * s + xx])
+				assert_true(h[y * s + x] <= top + 0.01, "절벽 칸 (%d,%d) %.1f > 이웃 최고 %.1f" % [x, y, h[y * s + x], top])
