@@ -140,7 +140,7 @@ func _step_grounded(intent: InputIntent, sense: Dictionary, delta: float) -> voi
 func _step_airborne(intent: InputIntent, sense: Dictionary, delta: float) -> void:
 	if _try_start_climb(intent, sense):
 		return
-	if intent.jump_pressed and velocity.y < 0.0 and _stamina.can_start():
+	if intent.jump_held and velocity.y < 0.0 and _stamina.can_start():   # 누르고 있는 동안 활공
 		state = State.GLIDING
 		_climb_jumping = false
 		_glide_motion(intent, sense, delta)
@@ -204,9 +204,12 @@ func is_invulnerable() -> bool:
 	return state == State.DODGING and _dodge_time < _c.dodge_iframes
 
 
+## 활공: 점프 버튼을 누르고 있는 동안만. 떼면 접힌다. 벽 쪽으로 밀면 벽을 잡는다.
 func _step_gliding(intent: InputIntent, sense: Dictionary, delta: float) -> void:
-	if intent.jump_pressed:
+	if not intent.jump_held:
 		state = State.AIRBORNE
+		return
+	if _try_start_climb(intent, sense):
 		return
 	_glide_motion(intent, sense, delta)
 

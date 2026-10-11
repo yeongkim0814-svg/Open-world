@@ -45,12 +45,63 @@ func test_ledge_hop_keeps_vertical_speed_next_tick():
 	assert_eq(l.state, Locomotion.State.AIRBORNE, "올라서는 중 다시 벽에 붙으면 안 됨")
 	assert_almost(v1.y, v0.y - t.gravity * DT)
 
-func test_jump_while_falling_opens_glider():
+func _held(move := Vector2.ZERO, pressed := false) -> InputIntent:
+	var i := _intent(move, pressed); i.jump_held = true; return i
+
+func test_holding_jump_while_falling_glides():
 	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.AIRBORNE
 	l.velocity = Vector3(0, -5, 0)
-	var v := l.step(_intent(Vector2(0, 1), true), air, DT)
+	var v := l.step(_held(Vector2(0, 1)), air, DT)
 	assert_eq(l.state, Locomotion.State.GLIDING)
 	assert_almost(v.y, -t.glide_fall_speed)
+
+func test_releasing_jump_closes_glider():
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.GLIDING
+	l.step(_intent(Vector2(0, 1)), air, DT)
+	assert_eq(l.state, Locomotion.State.AIRBORNE)
+
+func test_tap_jump_in_air_does_not_toggle():
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.GLIDING
+	l.step(_held(Vector2(0, 1), true), air, DT)
+	assert_eq(l.state, Locomotion.State.GLIDING)
+
+func test_held_from_ground_jump_glides_after_apex():       # Review Focus 1
+	var l := Locomotion.new(t, Stamina.new(t))
+	var ground := {"on_floor": true, "wall_normal": Vector3.ZERO, "ledge_top": false}
+	l.step(_held(Vector2.ZERO, true), ground, DT)
+	assert_eq(l.state, Locomotion.State.AIRBORNE)
+	var opened_while_rising := false
+	for i in 120:
+		var rising := l.velocity.y > 0.0
+		l.step(_held(), air, DT)
+		if l.state == Locomotion.State.GLIDING:
+			opened_while_rising = rising
+			break
+	assert_eq(l.state, Locomotion.State.GLIDING)
+	assert_false(opened_while_rising, "올라가는 중에는 펼치지 않음")
+
+func test_wall_regrab_beats_glide():                       # Review Focus 2
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
+	l.step(_held(Vector2(0, 1), true), wall, DT)          # 벽 점프
+	assert_eq(l.state, Locomotion.State.AIRBORNE)
+	l.velocity.y = -1.0
+	l.step(_held(Vector2(0, 1)), wall, DT)                 # 떨어지며 버튼 유지 + 벽
+	assert_eq(l.state, Locomotion.State.CLIMBING)
+
+func test_gliding_into_wall_grabs():
+	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.GLIDING
+	l.step(_held(Vector2(0, 1)), wall, DT)
+	assert_eq(l.state, Locomotion.State.CLIMBING)
+
+func test_exhausted_glider_does_not_reopen_while_held():   # Review Focus 3
+	var s := Stamina.new(t); var l := Locomotion.new(t, s); l.state = Locomotion.State.GLIDING
+	s.spend(99.99)
+	l.step(_held(Vector2(0, 1)), air, 1.0)
+	assert_eq(l.state, Locomotion.State.AIRBORNE)
+	l.velocity.y = -3.0
+	for i in 30:
+		l.step(_held(Vector2(0, 1)), air, DT); s.tick(DT)
+	assert_eq(l.state, Locomotion.State.AIRBORNE)
 
 func test_glider_closes_when_stamina_empty():      # Review Focus 2
 	var s := Stamina.new(t); var l := Locomotion.new(t, s); l.state = Locomotion.State.GLIDING
@@ -151,10 +202,10 @@ func test_hop_then_glide_landing_clears_guard():          # 리뷰 Important 1: 
 	var l := Locomotion.new(t, Stamina.new(t)); l.state = Locomotion.State.CLIMBING
 	_hop(l)
 	l.velocity.y = -1.0
-	l.step(_intent(Vector2.ZERO, true), air, DT)          # 떨어지며 점프 → 활공
+	l.step(_held(), air, DT)                              # 떨어지며 점프 버튼 유지 → 활공
 	assert_eq(l.state, Locomotion.State.GLIDING)
 	var floor_air := {"on_floor": true, "wall_normal": Vector3.ZERO, "ledge_top": false}
-	l.step(_intent(Vector2(0, 1)), floor_air, DT)         # 활공 중 착지
+	l.step(_held(Vector2(0, 1)), floor_air, DT)           # 활공 중 착지
 	assert_eq(l.state, Locomotion.State.GROUNDED)
 	assert_false(l._hop_guard, "착지하면 올라서기 가드가 풀려야 함")
 	var into_wall := _intent(Vector2(0, 1))
