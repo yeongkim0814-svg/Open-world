@@ -2,6 +2,8 @@ class_name HeightField
 extends RefCounted
 ## 흑백 높이 지도 → 높이·법선. 섬 중심 = 원점, 이미지 좌상 = (-size/2, -size/2) (x 오른쪽, z 아래 = 남쪽).
 ## 밝기는 빨강 채널로 읽으므로 L8이든 RGB든, 크기가 몇이든 동작한다.
+## RGB(A)면 초록 = 하위 비트(빨강 한 칸의 1/256 단위)로 더해 16비트 정밀도를 얻는다 (tools/gen_first_island.gd).
+## 시작할 때 높이를 배열로 풀어 두므로 height_at 은 픽셀 읽기 없이 배열만 본다.
 
 var world_size: float
 
@@ -10,6 +12,7 @@ var _w: int
 var _h: int
 var _min: float
 var _max: float
+var _hm := PackedFloat32Array()     # 픽셀 높이 (m), 행 = z
 
 
 func _init(image: Image, size: float, min_h: float, max_h: float) -> void:
@@ -22,6 +25,7 @@ func _init(image: Image, size: float, min_h: float, max_h: float) -> void:
 	_h = _img.get_height()
 	_min = min_h
 	_max = max_h
+	_decode()
 
 
 func height_at(x: float, z: float) -> float:
@@ -43,4 +47,32 @@ func normal_at(x: float, z: float) -> Vector3:
 
 
 func _sample(px: int, pz: int) -> float:
-	return lerpf(_min, _max, _img.get_pixel(px, pz).r)
+	return _hm[pz * _w + px]
+
+
+func _decode() -> void:
+	var img := _img
+	var fmt := img.get_format()
+	var stride := 1
+	var lo_bits := false
+	if fmt == Image.FORMAT_L8:
+		stride = 1
+	elif fmt == Image.FORMAT_RGB8:
+		stride = 3; lo_bits = true
+	elif fmt == Image.FORMAT_RGBA8:
+		stride = 4; lo_bits = true
+	else:
+		img = img.duplicate()
+		img.convert(Image.FORMAT_RGBA8)
+		stride = 4; lo_bits = fmt != Image.FORMAT_LA8 and fmt != Image.FORMAT_R8
+	var data := img.get_data()
+	var count := _w * _h
+	_hm.resize(count)
+	var scale := (_max - _min) / 255.0
+	var lo_scale := scale / 256.0
+	if lo_bits:
+		for i in count:
+			_hm[i] = _min + data[i * stride] * scale + data[i * stride + 1] * lo_scale
+	else:
+		for i in count:
+			_hm[i] = _min + data[i * stride] * scale
