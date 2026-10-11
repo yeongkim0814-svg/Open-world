@@ -171,7 +171,7 @@ func _start_next_job() -> void:
 			continue
 		var world := field.world_size
 		var origin := Vector2(-world * 0.5 + key.x * TerrainLod.CHUNK, -world * 0.5 + key.y * TerrainLod.CHUNK)
-		_job = ChunkMesh.Job.new(field, origin, TerrainLod.CHUNK, step_m, maxf(2.0, 2.0 * step_m))
+		_job = ChunkMesh.Job.new(field, origin, TerrainLod.CHUNK, step_m, maxf(6.0, 2.0 * step_m))   # 1m 구역도 6m: 가파른 곳의 4m 이웃 보간 오차까지 가림
 		_job_key = key
 		_job_step = step_m
 		_job_usec = 0
