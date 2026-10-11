@@ -1,40 +1,57 @@
 extends SceneTree
-## 고정 시점 스크린샷 (Forward+, xvfb). 사용: tools/shots.sh <tag> [grey|color|both]
-## 시점: 마을·둑 위·탑 꼭대기·서쪽 고원. color = 회복 후(vitality_radius 크게, vitality_global 1).
+## 고정 시점 스크린샷 (xvfb). 사용: tools/shots.sh <tag> [grey|color|both|r0,r50,r100] [first_island|style_test]
+## 모드: grey = 회복 0, color = 회복 1, rNN = 회복 NN%. 장면 루트에 set_preview_recovery(v)가 있으면 그것을 쓰고,
+## 없으면 첫 섬의 vitality 경로(set_recovered_visuals)를 쓴다.
 
-## 시점: [카메라 위치, 바라보는 점]
-const VIEWS := {
-	"village": [Vector3(0, 6, 112), Vector3(0, 20, -10)],
-	"dam": [Vector3(6, 19, 52), Vector3(0, 30, -10)],
-	"tower": [Vector3(0, 82, -2), Vector3(0, 0, 110)],
-	"plateau": [Vector3(-132, 23, -30), Vector3(-40, 15, -10)],
+## 장면별 시점: [카메라 위치, 바라보는 점]
+const SCENES := {
+	"first_island": {
+		"village": [Vector3(0, 6, 112), Vector3(0, 20, -10)],
+		"dam": [Vector3(6, 19, 52), Vector3(0, 30, -10)],
+		"tower": [Vector3(0, 82, -2), Vector3(0, 0, 110)],
+		"plateau": [Vector3(-132, 23, -30), Vector3(-40, 15, -10)],
+	},
+	"style_test": {
+		"near": [Vector3(6, 4, 30), Vector3(0, 3, 10)],
+		"mid": [Vector3(30, 14, 50), Vector3(0, 4, 0)],
+		"far": [Vector3(70, 40, 90), Vector3(0, 0, 0)],
+		"ruin": [Vector3(-14, 5, 8), Vector3(-24, 4, -6)],
+	},
 }
 const SETTLE_FRAMES := 45
 
-var s; var tag := "shot"; var modes := ["grey", "color"]
+var s; var tag := "shot"; var scene_name := "first_island"; var modes := ["grey", "color"]
 var queue := []; var frame := 0; var cam: Camera3D
 
 
 func _initialize() -> void:
 	var a := OS.get_cmdline_user_args()
 	if a.size() > 0: tag = a[0]
-	if a.size() > 1 and a[1] != "both": modes = [a[1]]
+	if a.size() > 1 and a[1] != "both": modes = Array(a[1].split(","))
+	if a.size() > 2: scene_name = a[2]
 	DirAccess.make_dir_recursive_absolute("/tmp/claude-0/shots")
-	s = load("res://scenes/first_island.tscn").instantiate()
+	s = load("res://scenes/%s.tscn" % scene_name).instantiate()
 	root.add_child(s)
 	for m in modes:
-		for v in VIEWS:
+		for v in SCENES[scene_name]:
 			queue.append([v, m])
 
 
-func _set_vitality(color: bool) -> void:
-	RenderingServer.global_shader_parameter_set("vitality_radius", 100000.0 if color else 0.0)
+static func mode_value(m: String) -> float:
+	if m == "grey": return 0.0
+	if m == "color": return 1.0
+	return clampf(float(m.trim_prefix("r")) / 100.0, 0.0, 1.0)
+
+
+func _set_recovery(v: float) -> void:
+	if s.has_method("set_preview_recovery"):
+		s.set_preview_recovery(v)
+		return
+	RenderingServer.global_shader_parameter_set("vitality_radius", 100000.0 if v > 0.0 else 0.0)
 	if ProjectSettings.has_setting("shader_globals/vitality_global"):
-		RenderingServer.global_shader_parameter_set("vitality_global", 1.0 if color else 0.0)
+		RenderingServer.global_shader_parameter_set("vitality_global", v)
 	if s.has_method("set_recovered_visuals"):
-		s.set_recovered_visuals(1.0 if color else 0.0)
-	elif s.has_method("apply_vitality_global"):
-		s.apply_vitality_global(1.0 if color else 0.0)
+		s.set_recovered_visuals(v)
 
 
 func _process(_dt: float) -> bool:
@@ -43,17 +60,18 @@ func _process(_dt: float) -> bool:
 		var ui = s.get_node_or_null("UI")
 		if ui: ui.visible = false
 		for m in get_nodes_in_group("enemy"): m.process_mode = Node.PROCESS_MODE_DISABLED
-		s.get_node("Player").global_position = Vector3(3, 4, 104)   # 마을 시점에 크기 기준으로만 보이게
+		if scene_name == "first_island":
+			s.get_node("Player").global_position = Vector3(3, 4, 104)   # 마을 시점에 크기 기준으로만 보이게
 	if queue.is_empty():
 		quit(); return false
 	var cur = queue[0]
 	if frame % SETTLE_FRAMES == 3:
 		if cam == null:
-			cam = Camera3D.new(); cam.fov = 70.0; s.add_child(cam); cam.make_current()
-		var v = VIEWS[cur[0]]
+			cam = Camera3D.new(); cam.fov = 70.0; cam.far = 4000.0; s.add_child(cam); cam.make_current()
+		var v = SCENES[scene_name][cur[0]]
 		cam.global_position = v[0]
 		cam.look_at(v[1], Vector3.UP)
-		_set_vitality(cur[1] == "color")
+		_set_recovery(mode_value(cur[1]))
 	elif frame % SETTLE_FRAMES == 0:
 		var path := "/tmp/claude-0/shots/%s_%s_%s.png" % [tag, cur[0], cur[1]]
 		root.get_texture().get_image().save_png(path)

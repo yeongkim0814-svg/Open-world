@@ -6,7 +6,7 @@ config_version=5
 
 config/name="Open World"
 run/main_scene="res://scenes/first_island.tscn"
-config/features=PackedStringArray("4.7", "Forward Plus")
+config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]
 
@@ -23,8 +23,8 @@ common/physics_interpolation=true
 
 [rendering]
 
-renderer/rendering_method="forward_plus"
-renderer/rendering_method.mobile="forward_plus"
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
 scaling_3d/scale=0.75
 textures/vram_compression/import_etc2_astc=true
 
