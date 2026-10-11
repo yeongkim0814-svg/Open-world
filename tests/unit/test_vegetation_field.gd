@@ -199,3 +199,116 @@ func test_water_nodes_reread():
 	assert_eq(reads[0], f.stats()["blocks"], "블록마다 물 노드를 다시 읽는다")
 	w.free()
 	f.free()
+
+
+## 칸 노드가 담은 인스턴스 수 / 칸에 들어가야 할 인스턴스 수 (블록 버퍼 합)
+func _cell_actual(f: VegetationField, si: int, ck: Vector2i) -> int:
+	var c: Dictionary = f._cells[si].get(ck, {})
+	if c.is_empty():
+		return 0
+	var n := 0
+	for mmi in (c["node"] as Node).get_children():
+		n += (mmi as MultiMeshInstance3D).multimesh.instance_count
+	return n
+
+
+func _cell_expected(f: VegetationField, si: int, ck: Vector2i) -> int:
+	var n := 0
+	for k in f.block_keys(L.TREE):
+		if f._cell_key(si, L.TREE, k) != ck:
+			continue
+		var b: Dictionary = f._blocks[L.TREE][k]
+		if f._in_set(si, b):
+			n += int(b["count"])
+	return n
+
+
+## 전환으로 더러워진 두 칸은 같은 묶음이고, 매 step 마다 함께 더럽거나 함께 깨끗하다 (한쪽만 다시 만들어지는 프레임이 없다)
+func _run_paired(f: VegetationField, si_a: int, ck_a: Vector2i, si_b: int, ck_b: Vector2i) -> int:
+	var da: Array = f._dirty.get(f._dkey(si_a, ck_a), [])
+	var db: Array = f._dirty.get(f._dkey(si_b, ck_b), [])
+	assert_true(not da.is_empty() and not db.is_empty(), "전환하면 옛/새 칸이 더러워진다")
+	if da.is_empty() or db.is_empty():
+		return 0
+	assert_true(int(da[3]) > 0 and da[3] == db[3], "두 칸은 같은 묶음")
+	var g: int = da[3]
+	var n := 0
+	while f.busy() and n < 400:
+		f.step(0.0)
+		var ea: Array = f._dirty.get(f._dkey(si_a, ck_a), [])
+		var eb: Array = f._dirty.get(f._dkey(si_b, ck_b), [])
+		var pa: bool = not ea.is_empty() and ea[3] == g
+		var pb: bool = not eb.is_empty() and eb[3] == g
+		assert_eq(pa, pb, "옛/새 칸이 같은 step 에 다시 만들어져야 함")
+		n += 1
+	return n
+
+
+## 나무 블록이 LOD0 거리·그림자 거리를 넘나들면 가까운/먼/그림자 묶음 칸이 바뀌고, 전환 중 한 프레임도 사라지거나 겹치지 않는다
+func test_tree_lod_and_shadow_transition():
+	var f := _make({L.GRASS: 0.0, L.SHRUB: 0.0, L.ROCK: 0.0, L.TREE: 400.0})
+	var k := Vector2i(0, -1)
+	var bc := _block_center(L.TREE, k)
+	f.update_center(Vector3(bc.x, 0, bc.y))
+	_run(f)
+	assert_true(f._blocks[L.TREE].has(k), "시험 블록이 만들어져야 함")
+	var b: Dictionary = f._blocks[L.TREE][k]
+	assert_true(int(b["count"]) > 0, "시험 블록에 나무가 있어야 함")
+	var near_si := 2; var far_si := 3; var sh_si := 4   # SETS 순서
+	var nck := f._cell_key(near_si, L.TREE, k)
+	var fck := f._cell_key(far_si, L.TREE, k)
+	var sck := f._cell_key(sh_si, L.TREE, k)
+	# 가까이: 가까운 묶음 + 그림자 전용, 먼 묶음에는 없음
+	assert_true(f._in_set(near_si, b) and not f._in_set(far_si, b), "가까운 블록 = 근거리 묶음")
+	assert_true(f._in_set(sh_si, b), "가까운 블록 = 그림자 전용 묶음")
+	assert_true(_cell_actual(f, sh_si, sck) > 0, "그림자 전용 칸이 있어야 함")
+	# 그림자 묶음은 근거리 블록만 (그림자 거리 < LOD0 거리)
+	for kk in f.block_keys(L.TREE):
+		var bb: Dictionary = f._blocks[L.TREE][kk]
+		if int(bb["flags"]) & VegetationField.F_SHADOW:
+			assert_true(int(bb["flags"]) & VegetationField.F_NEAR != 0, "그림자 블록은 근거리여야 함 %s" % str(kk))
+	var base_near := _cell_expected(f, near_si, nck)
+	assert_eq(_cell_actual(f, near_si, nck), base_near, "근거리 칸 인스턴스 수")
+	# 멀어짐: LOD0 끝 + HYST 를 넘는다 (그림자 거리도)
+	var away := VegetationField.TREE_LOD0_END + VegetationField.HYST + 12.0
+	f.update_center(Vector3(bc.x - away, 0, bc.y))
+	var n := _run_paired(f, near_si, nck, far_si, fck)
+	b = f._blocks[L.TREE][k]
+	assert_true(f._in_set(far_si, b) and not f._in_set(near_si, b), "멀어지면 먼 묶음으로")
+	assert_false(f._in_set(sh_si, b), "멀어지면 그림자 전용에서 빠짐")
+	assert_eq(_cell_actual(f, far_si, fck), _cell_expected(f, far_si, fck), "먼 칸에 이 블록 나무가 들어감")
+	assert_true(_cell_expected(f, far_si, fck) >= int(b["count"]))
+	assert_eq(_cell_actual(f, near_si, nck), _cell_expected(f, near_si, nck), "근거리 칸에서 빠짐")
+	assert_eq(_cell_actual(f, sh_si, sck), _cell_expected(f, sh_si, sck), "그림자 칸에서 빠짐")
+	# 되돌아옴
+	f.update_center(Vector3(bc.x, 0, bc.y))
+	n = _run_paired(f, near_si, nck, far_si, fck)
+	b = f._blocks[L.TREE][k]
+	assert_true(f._in_set(near_si, b) and not f._in_set(far_si, b) and f._in_set(sh_si, b), "돌아오면 근거리 + 그림자")
+	assert_eq(_cell_actual(f, near_si, nck), _cell_expected(f, near_si, nck))
+	assert_eq(_cell_actual(f, far_si, fck), _cell_expected(f, far_si, fck))
+	assert_eq(_cell_actual(f, sh_si, sck), _cell_expected(f, sh_si, sck))
+	f.free()
+
+
+func test_collision_follows_target_not_camera():
+	var f := _make({L.GRASS: 0.0, L.SHRUB: 0.0, L.TREE: 130.0, L.ROCK: 0.0})
+	# 카메라는 원점, 충돌 중심(플레이어)은 (-60, 0): 충돌 블록은 플레이어 쪽 기준
+	f.update_center(Vector3(0, 0, 0), Vector3(-60, 0, 0))
+	_run(f)
+	for e in f.collision_block_keys():
+		var layer: int = e[0]
+		var lim := 48.0 + 128.0 * 0.7072
+		assert_true(_block_center(layer, e[1]).distance_to(Vector2(-60, 0)) <= lim + 0.01, "충돌 블록이 플레이어 기준이어야 함 %s" % str(e[1]))
+	# 플레이어에서 먼(= 충돌 범위 밖) 개체는 충돌 모양이 없다
+	for cs in f.find_children("*", "CollisionShape3D", true, false):
+		assert_true(Vector2(cs.position.x, cs.position.z).distance_to(Vector2(-60, 0)) <= VegetationField.COL_ITEM_R + 0.5)
+	f.free()
+
+
+func test_trunk_collision_radius_scaled():
+	var f := _make({L.TREE: 0.0})
+	var tr := _catalog().trunk("tree_round_0")
+	var cyl := f._trunk_shape("tree_round_0", 1.0)
+	assert_true(absf(cyl.radius - maxf(tr.x * 1.0 * 1.2, 0.05)) < 0.001, "줄기 충돌 반지름 ×1.2: %f vs %f" % [cyl.radius, tr.x * 1.2])
+	f.free()

@@ -46,6 +46,8 @@ func _ready() -> void:
 			_start = Vector3(m.x, 0.0, m.z)
 	if _player:
 		_terrain.set_focus(_player)
+		if veg:
+			veg.collision_target = _player
 
 
 func _process(dt: float) -> void:

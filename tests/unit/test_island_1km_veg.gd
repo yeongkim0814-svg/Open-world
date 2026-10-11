@@ -18,12 +18,21 @@ func test_scene_has_vegetation_blocks():
 	assert_true(s.get("field") != null, "field 준비 후 생성")
 	assert_true(veg.get_parent() == s and veg.get_index() > s.get_node("Terrain").get_index(), "지형 뒤에 붙는다")
 	veg.update_center(Vector3(690, 0, 705))
+	assert_true(veg.busy(), "중심을 옮기면 할 일이 생겨야 함")
 	var n := 0
 	while veg.stats()["blocks"] == 0 and n < 200:
 		veg.step(50.0)
 		n += 1
-	assert_true(veg.stats()["blocks"] > 0, "몇 단계 뒤 블록이 생겨야 함")
-	assert_true(veg.busy() == (veg.stats()["pending"] + veg.stats()["dirty"] > 0))
+	assert_true(veg.stats()["blocks"] > 0, "몇 단계 뒤 블록이 실제로 만들어져야 함")
+	assert_true(veg.stats()["instances"] > 0, "만들어진 블록에 개체가 있어야 함")
+	# 블록이 만들어진 뒤에도 칸(MultiMesh)이 만들어질 때까지 돌리면 그려질 것이 생긴다
+	n = 0
+	while veg.busy() and n < 600:
+		veg.step(50.0)
+		n += 1
+	assert_false(veg.busy(), "충분히 돌리면 일이 끝나야 함 (%d 단계)" % n)
+	assert_true(veg.stats()["multimeshes"] > 0, "그릴 MultiMesh 가 있어야 함")
+	assert_true(veg.collision_target == s.get_node_or_null("Player") or s.get_node_or_null("Player") == null, "충돌 기준 = 플레이어")
 	# 장면 busy() 가 식생 대기열을 포함
 	if veg.busy():
 		assert_true(s.busy(), "장면 busy() 에 식생 포함")

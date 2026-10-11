@@ -21,6 +21,7 @@ const SMALL := "|s"              ## 작은 바위 버퍼 키 꼬리
 const SHADOW_DIST := 80.0        ## 해 그림자 거리 (island_1km directional_shadow_max_distance 와 맞춤)
 const STRIDE := 13               ## 충돌 자료: 변환 12 실수 + 크기
 const FLOATS := 20               ## MultiMesh 인스턴스: 변환 12 + 색 4 + 사용자 4
+const TRUNK_R_SCALE := 1.2       ## 줄기 충돌 반지름 배율 (설계서: 메시 줄기 ×1.2)
 const CYL_BUCKET := 0.05         ## 줄기 원기둥 모양 공유: 크기를 이 단위로 반올림
 const FRAME_BUDGET_MS := 2.5     ## _process 의 step 예산 — 예상 비용 오차·마지막 줄 넘침을 감안해 설계서 한도 3 ms 보다 낮게
 const DIRTY_WAIT := 6            ## 칸 다시 만들기를 블록 계산 뒤로 미루는 최대 step 수 (여러 블록을 모아 한 번에)
@@ -61,10 +62,13 @@ var _pending: Array = []   ## 내림차순 정렬 [거리, 일, 층, 키] — �
 var _queued := {}
 var _center := Vector2.ZERO
 var _last_refresh := Vector2(1e12, 1e12)
+var _ccenter := Vector2.ZERO          ## 충돌 중심
+var _last_col_refresh := Vector2(1e12, 1e12)
 var _water: Array = []
 var _prev_water := Callable()
 var _instances := 0
 var _tick := 0
+var _group_seq := 0    ## 표시 전환 묶음 번호 (같은 묶음의 칸은 함께 다시 만든다)
 var _cost := {}        ## 일 종류·층 → 최근 비용 (ms, 지수 평균) — 예산 판단용
 var _cost_max := {}    ## 같은 키의 최대 비용 (측정 프로브용)
 var _cyl := {}         ## "id:크기구간" → CylinderShape3D
@@ -72,6 +76,8 @@ var _job: VegPlacement.Job   ## 계산 중인 블록 (없으면 null)
 var _job_key := Vector2i.ZERO
 ## 물 노드 목록 공급자 (기본: 그룹 "water"). 트리 밖 시험용으로 바꿔 끼울 수 있다.
 var water_source := Callable()
+## 충돌 기준 노드 (보통 플레이어). 없으면 카메라 위치를 쓴다. 스트리밍·LOD 는 항상 카메라 기준.
+var collision_target: Node3D
 
 
 func setup(ctx: VegContext, catalog: VegCatalog, world_seed := 1337) -> void:
@@ -97,13 +103,17 @@ func setup(ctx: VegContext, catalog: VegCatalog, world_seed := 1337) -> void:
 func set_reach(layer: int, r: float) -> void:
 	_reach[layer] = r
 	_last_refresh = Vector2(1e12, 1e12)
+	_last_col_refresh = Vector2(1e12, 1e12)
 
 
 func _process(_dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null or _ctx == null:
 		return
-	update_center(cam.global_position)
+	if collision_target != null and is_instance_valid(collision_target):
+		update_center(cam.global_position, collision_target.global_position)
+	else:
+		update_center(cam.global_position)
 	step(FRAME_BUDGET_MS)
 
 
@@ -137,12 +147,15 @@ func stats() -> Dictionary:
 			"pending": _pending.size(), "dirty": _dirty.size(), "multimeshes": mmi}
 
 
-func update_center(p: Vector3) -> void:
+## p = 스트리밍·LOD 중심(카메라), collision_p = 충돌 중심(플레이어; 생략하면 p)
+func update_center(p: Vector3, collision_p = null) -> void:
 	var c := Vector2(p.x, p.z)
 	_center = c
-	if c.distance_to(_last_refresh) < REFRESH_MOVE:
+	_ccenter = c if collision_p == null else Vector2((collision_p as Vector3).x, (collision_p as Vector3).z)
+	if c.distance_to(_last_refresh) < REFRESH_MOVE and _ccenter.distance_to(_last_col_refresh) < REFRESH_MOVE:
 		return
 	_last_refresh = c
+	_last_col_refresh = _ccenter
 	_refresh()
 
 
@@ -173,8 +186,14 @@ func step(budget_ms := 3.0) -> void:
 				break
 			first = false
 			var ts := Time.get_ticks_usec()
-			_dirty.erase(_dkey(cell[0], cell[1]))
-			_build_cell(cell[0], cell[1])
+			var batch := [cell]
+			if int(cell[3]) > 0:
+				for e in _dirty.values():
+					if not is_same(e, cell) and e[3] == cell[3]:
+						batch.append(e)
+			for e in batch:
+				_dirty.erase(_dkey(e[0], e[1]))
+				_build_cell(e[0], e[1])
 			_note_cost(ckey, ts)
 			continue
 		var e: Array = _pending.back()
@@ -222,7 +241,7 @@ func _wanted(layer: int, k: Vector2i, extra := 0.0) -> bool:
 
 func _col_wanted(layer: int, k: Vector2i) -> bool:
 	var s: float = VegPlacement.BLOCK[layer]
-	return (layer == L.TREE or layer == L.ROCK) and _block_center(layer, k).distance_to(_center) <= COLLIDE_R + s * DIAG
+	return (layer == L.TREE or layer == L.ROCK) and _block_center(layer, k).distance_to(_ccenter) <= COLLIDE_R + s * DIAG
 
 
 ## 거리 표시: 켜진 것은 경계 + HYST 를 넘어야 꺼진다
@@ -256,9 +275,11 @@ func _refresh() -> void:
 			var b: Dictionary = have[k]
 			var f := _flags(layer, k, b["flags"])
 			if f != b["flags"]:
-				_mark_block(layer, k, b)   # 옛 표시의 칸
+				# 옛 표시의 칸과 새 표시의 칸은 같은 step 에 함께 다시 만든다 (사라지거나 겹쳐 보이는 프레임이 없게)
+				_group_seq += 1
+				_mark_block(layer, k, b, _group_seq)
 				b["flags"] = f
-				_mark_block(layer, k, b)   # 새 표시의 칸
+				_mark_block(layer, k, b, _group_seq)
 			# 충돌 범위를 벗어난 충돌체 지움
 			if not _col_wanted(layer, k):
 				_drop_body(b)
@@ -276,7 +297,7 @@ func _refresh() -> void:
 					_push(Job.BLOCK, layer, k, d)
 				elif _col_wanted(layer, k):
 					var b: Dictionary = have[k]
-					if b["body"] == null or (b["ccenter"] as Vector2).distance_to(_center) > COL_REBUILD_MOVE:
+					if b["body"] == null or (b["ccenter"] as Vector2).distance_to(_ccenter) > COL_REBUILD_MOVE:
 						_push(Job.COLLISION, layer, k, d - 1000.0)   # 충돌을 먼저
 	_pending.sort_custom(func(a, b): return a[0] > b[0])
 
@@ -314,6 +335,7 @@ func _clear() -> void:
 	_queued.clear()
 	_instances = 0
 	_last_refresh = Vector2(1e12, 1e12)
+	_last_col_refresh = Vector2(1e12, 1e12)
 
 
 # ---------- 물 ----------
@@ -412,7 +434,7 @@ func _in_set(si: int, b: Dictionary) -> bool:
 
 
 ## 블록이 속한 (현재 표시 기준) 모든 묶음의 칸을 더럽힌다
-func _mark_block(layer: int, k: Vector2i, b: Dictionary) -> void:
+func _mark_block(layer: int, k: Vector2i, b: Dictionary, group := 0) -> void:
 	if int(b["count"]) == 0:
 		return
 	for si in SETS.size():
@@ -421,7 +443,14 @@ func _mark_block(layer: int, k: Vector2i, b: Dictionary) -> void:
 		var ck := _cell_key(si, layer, k)
 		var dk := _dkey(si, ck)
 		if not _dirty.has(dk):
-			_dirty[dk] = [si, ck, _tick]
+			_dirty[dk] = [si, ck, _tick, 0]
+		if group > 0:
+			var old_g: int = _dirty[dk][3]
+			if old_g > 0 and old_g != group:
+				for e in _dirty.values():   # 이전 묶음도 새 묶음에 합친다
+					if e[3] == old_g:
+						e[3] = group
+			_dirty[dk][3] = group
 
 
 ## 다시 만들 칸: 대기열이 비었거나 DIRTY_WAIT 이상 기다린 칸 중 가장 가까운 것 (없으면 [])
@@ -544,7 +573,7 @@ func _trunk_shape(id: String, sz: float) -> CylinderShape3D:
 	var tr := _cat.trunk(id)
 	var qs := q * CYL_BUCKET
 	var cyl := CylinderShape3D.new()
-	cyl.radius = maxf(tr.x * qs, 0.05)
+	cyl.radius = maxf(tr.x * qs * TRUNK_R_SCALE, 0.05)
 	cyl.height = maxf(tr.y * qs, 0.1)
 	_cyl[key] = cyl
 	return cyl
@@ -552,7 +581,7 @@ func _trunk_shape(id: String, sz: float) -> CylinderShape3D:
 
 func _make_body(layer: int, b: Dictionary) -> void:
 	var body := StaticBody3D.new()
-	b["ccenter"] = _center
+	b["ccenter"] = _ccenter
 	var cd: Dictionary = b["cdata"]
 	if not cd.is_empty():
 		var ids: PackedStringArray = cd["ids"]
@@ -560,7 +589,7 @@ func _make_body(layer: int, b: Dictionary) -> void:
 		for i in ids.size():
 			var o := i * STRIDE
 			var pos := Vector3(f[o + 3], f[o + 7], f[o + 11])
-			if Vector2(pos.x, pos.z).distance_to(_center) > COL_ITEM_R:
+			if Vector2(pos.x, pos.z).distance_to(_ccenter) > COL_ITEM_R:
 				continue
 			var cs := CollisionShape3D.new()
 			var sz := f[o + 12]

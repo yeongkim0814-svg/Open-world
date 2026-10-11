@@ -154,3 +154,38 @@ func test_block_timing():
 				var ms := (Time.get_ticks_usec() - t0) / 1000.0
 				sum += ms; worst = maxf(worst, ms); cnt += 1; items += r.size()
 			print("  블록 시간 [%s] %s: 평균 %.2f ms, 최대 %.2f ms, 평균 개체 %.0f" % [ctx_name, ["풀", "덤불", "나무", "바위"][layer], sum / cnt, worst, float(items) / cnt])
+
+
+func test_rock_tilt_within_25_degrees():
+	var c := VegFixture.steep_context()
+	var n := 0
+	var worst := 0.0
+	for s in [1, 2, 3]:
+		for k in [Vector2i(0, -1), Vector2i(-1, -1), Vector2i(0, 0), Vector2i(-1, 0)]:
+			for it in VegPlacement.block(c, L.ROCK, k, s):
+				var up: Vector3 = (it["xform"] as Transform3D).basis.y.normalized()
+				var ang := rad_to_deg(acos(clampf(up.y, -1.0, 1.0)))
+				worst = maxf(worst, ang)
+				n += 1
+				assert_true(ang <= 25.0 + 0.05, "바위 기울기 %.2f° > 25°" % ang)
+	print("  바위 %d 개 최대 기울기 %.2f°" % [n, worst])
+	assert_true(n > 30, "바위 수 %d" % n)
+
+
+## 빈터/맨땅 문턱: 2048 m 지도 200x200 표본(world_seed 1337)에서 빈터 35 %, 맨땅 25 % 안팎
+func _frac_below(kind: String, thr: float) -> float:
+	var nz := VegPlacement.noise(kind, 1337)
+	var below := 0
+	for j in 200:
+		for i in 200:
+			if nz.get_noise_2d(-1024.0 + (i + 0.5) * 10.24, -1024.0 + (j + 0.5) * 10.24) < thr:
+				below += 1
+	return below / 40000.0
+
+
+func test_clearing_fractions():
+	var tf := _frac_below("clump_tree", VegPlacement.TREE_CLUMP_BELOW)
+	var gf := _frac_below("clump_grass", VegPlacement.GRASS_BARE_BELOW)
+	print("  빈터 %.1f %% / 맨땅 %.1f %%" % [tf * 100.0, gf * 100.0])
+	assert_true(absf(tf - 0.35) <= 0.04, "숲 빈터 비율 %.3f (목표 0.35±0.04)" % tf)
+	assert_true(absf(gf - 0.25) <= 0.04, "맨땅 비율 %.3f (목표 0.25±0.04)" % gf)

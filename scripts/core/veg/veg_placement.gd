@@ -21,13 +21,13 @@ const ROCK_VARIANTS := 4
 
 # 풀 (설계서 4장)
 const GRASS_MAX := 1.6
-const GRASS_BARE_BELOW := -0.2        # clump 노이즈가 이 값 아래 = 맨땅 (대략 하위 25 %)
+const GRASS_BARE_BELOW := -0.2        # clump 노이즈가 이 값 아래 = 맨땅 (같은 방법 측정: 하위 약 23 %)
 const GRASS_MIN_NY := 0.6428          # cos 50°
 const GRASS_TILT := deg_to_rad(8.0)
 # 나무
 const TREE_MIN_NY := 0.77
 const TREE_SPACING := 4.0
-const TREE_CLUMP_BELOW := -0.25       # clump_tree 가 이 값 이상 = 상위 약 65 %
+const TREE_CLUMP_BELOW := -0.10       # clump_tree 가 이 값 아래 = 빈터 (2048 m 지도 200x200 표본, world_seed 1337 의 35 분위 ≈ -0.103)
 # 바위
 const ROCK_MAX_SLOPE_NY := 0.342      # cos 70° 보다 가파른 면은 제외
 const ROCK_TILT := deg_to_rad(25.0)
@@ -150,7 +150,15 @@ static func _tilted_basis(n: Vector3, rng: RandomNumberGenerator, max_tilt: floa
 		b = Basis(axis.normalized(), ang) * b
 	if extra > 0.0:
 		var ex := rng.randf() * extra
-		b = Basis(Vector3(cos(rng.randf() * TAU), 0.0, sin(rng.randf() * TAU)).normalized(), ex) * b
+		var az := rng.randf() * TAU
+		b = Basis(Vector3(cos(az), 0.0, sin(az)), ex) * b
+		# 사면 기울임 + 추가 기울임이 합쳐서 max_tilt 를 넘지 않게 (설계서: 바위 기울기 ≤ 25°)
+		var up := b.y.normalized()
+		var total := acos(clampf(up.y, -1.0, 1.0))
+		if total > max_tilt:
+			var back := Vector3.UP.cross(up)
+			if back.length_squared() > 1e-10:
+				b = Basis(back.normalized(), -(total - max_tilt)) * b
 	return b
 
 
