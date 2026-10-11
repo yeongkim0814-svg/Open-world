@@ -34,6 +34,18 @@ fog_light_color = Color(0.6, 0.63, 0.66, 1)
 fog_density = 0.004
 fog_height = 6.0
 fog_height_density = 0.04
+ssao_enabled = true
+ssao_radius = 2.0
+ssao_intensity = 3.0
+ssil_enabled = true
+ssil_radius = 4.0
+glow_enabled = true
+glow_intensity = 0.4
+glow_bloom = 0.05
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.008
+volumetric_fog_albedo = Color(0.85, 0.88, 0.92, 1)
+volumetric_fog_length = 96.0
 
 [sub_resource type="ShaderMaterial" id="SeaMat"]
 shader = ExtResource("vshader")

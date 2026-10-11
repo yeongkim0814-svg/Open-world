@@ -6,7 +6,7 @@ config_version=5
 
 config/name="Open World"
 run/main_scene="res://scenes/first_island.tscn"
-config/features=PackedStringArray("4.7", "Mobile")
+config/features=PackedStringArray("4.7", "Forward Plus")
 
 [display]
 
@@ -23,7 +23,8 @@ common/physics_interpolation=true
 
 [rendering]
 
-renderer/rendering_method="mobile"
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="forward_plus"
 scaling_3d/scale=0.75
 
 [shader_globals]

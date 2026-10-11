@@ -32,7 +32,7 @@ func _process(delta: float) -> void:
 	if _log_timer >= 3.0:
 		_log_timer = 0.0
 		print("PERF fps=%d avg_ms=%.1f worst_ms=%.1f" % [Engine.get_frames_per_second(), _avg_ms, _worst_ms])
-	var lines := ["FPS %d" % Engine.get_frames_per_second(), "frame %.1f ms (최악 %.1f)" % [_avg_ms, _worst_ms]]
+	var lines := ["FPS %d  [%s]" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_method()], "frame %.1f ms (최악 %.1f)" % [_avg_ms, _worst_ms]]
 	if player and player.locomotion:
 		lines.append("state %s" % STATE_NAMES[player.locomotion.state])
 		lines.append("stamina %d%s" % [roundi(player.stamina.value), " (탈진)" if player.stamina.exhausted else ""])
