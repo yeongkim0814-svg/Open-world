@@ -25,3 +25,20 @@ func test_displayed_at_outside_rect_zero():
 		m.step(0.5)
 	assert_almost(m.displayed_at(Vector2(500, 0)), 0.0, 0.0001, "rect 밖")
 	m.free()
+
+## 최종 리뷰: 목표에 도달한 뒤에는 매 프레임 다시 굽거나 올리지 않는다.
+func test_settled_map_skips_upload():
+	var m := _map()
+	for i in 8:
+		m.step(0.5)
+	assert_true(m.is_settled(), "수렴 후 정지")
+	var n := m.upload_count
+	m.step(0.5)
+	m.step(0.5)
+	assert_eq(m.upload_count, n, "정지 상태에서는 텍스처를 다시 올리지 않음")
+	m.model.set_preview(0.2)
+	m.refresh()
+	assert_false(m.is_settled(), "목표가 바뀌면 다시 움직임")
+	m.step(0.5)
+	assert_eq(m.upload_count, n + 1)
+	m.free()

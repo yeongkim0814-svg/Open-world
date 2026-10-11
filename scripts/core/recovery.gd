@@ -96,6 +96,6 @@ static func from_dict(d: Dictionary) -> Recovery:
 		var id := StringName(key)
 		rec.add_region(id, Vector2(float(r.get("x", 0.0)), float(r.get("y", 0.0))),
 			float(r.get("radius", 0.0)))
-		rec._regions[id]["progress"] = minf(float(r.get("progress", 0.0)), TASK_CAP)
+		rec._regions[id]["progress"] = clampf(float(r.get("progress", 0.0)), 0.0, TASK_CAP)
 		rec._regions[id]["tower"] = bool(r.get("tower", false))
 	return rec

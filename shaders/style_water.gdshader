@@ -7,6 +7,7 @@ uniform vec3 shallow_depleted : source_color = vec3(0.35, 0.43, 0.45);
 uniform vec3 shallow_restored : source_color = vec3(0.16, 0.48, 0.49);
 uniform vec3 deep_depleted : source_color = vec3(0.16, 0.22, 0.24);
 uniform vec3 deep_restored : source_color = vec3(0.03, 0.16, 0.27);
+uniform bool use_here = false;        // 넓은 바다: 카메라 위치의 회복값
 uniform float alpha_deep = 1.0;
 uniform float alpha_shore = 0.45;
 uniform float wave_scale = 0.18;
@@ -26,7 +27,7 @@ float wave_h(vec2 p) {
 }
 
 void fragment() {
-	float r = recovery_at(v_world);
+	float r = use_here ? recovery_here : recovery_at(v_world);
 	vec3 shallow = mix(shallow_depleted, shallow_restored, r);
 	vec3 deep = mix(deep_depleted, deep_restored, r);
 	ALBEDO = mix(shallow, deep, smoothstep(0.0, 1.0, v_depth));

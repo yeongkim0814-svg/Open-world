@@ -88,3 +88,11 @@ func test_dict_roundtrip():
 	assert_almost(r2.value(&"a"), 0.2, 0.0001, "a")
 	assert_almost(r2.value(&"b"), 1.0, 0.0001, "b")
 	assert_almost(r2.value_at(Vector2(3, 4)), r.value_at(Vector2(3, 4)), 0.0001, "위치")
+
+## 최종 리뷰: 저장값의 음수 진행도는 0으로.
+func test_from_dict_negative_progress_clamped():
+	var r := Recovery.new()
+	r.add_region(&"a", Vector2.ZERO, 10.0)
+	var d := r.to_dict()
+	d["regions"]["a"]["progress"] = -5.0
+	assert_almost(Recovery.from_dict(d).value(&"a"), 0.0, 0.0001)

@@ -204,7 +204,9 @@ func _build_water() -> void:
 	var sea := MeshInstance3D.new()
 	sea.name = "Sea"
 	sea.mesh = _water_grid(Vector2.ZERO, 2400.0, 40.0, SEA_LEVEL, 2.5)
-	sea.material_override = mat
+	var sea_mat := mat.duplicate() as ShaderMaterial
+	sea_mat.set_shader_parameter("use_here", true)
+	sea.material_override = sea_mat
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(sea)
 	var w := Water.new()   # 수영 판정용 (그룹 "water")
@@ -398,6 +400,7 @@ func _build_clouds() -> void:
 	mat.set_shader_parameter("color_restored", Color("#FFFFFF"))
 	mat.set_shader_parameter("noise_amount", 0.0)
 	mat.set_shader_parameter("wobble", 0.04)
+	mat.set_shader_parameter("use_here", true)
 	for i in 12:
 		var m := CloudGen.build(SEED + i)
 		m.surface_set_material(0, mat)
@@ -438,6 +441,7 @@ func _build_ridges() -> void:
 	m.set_shader_parameter("color_depleted", Color("#6F7C86"))   # 먼 산은 푸른 회색 색면 (안개가 하늘색으로 녹인다)
 	m.set_shader_parameter("color_restored", Color("#5E7D99"))
 	m.set_shader_parameter("noise_amount", 0.0)
+	m.set_shader_parameter("use_here", true)
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
