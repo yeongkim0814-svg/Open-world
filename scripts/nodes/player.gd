@@ -110,13 +110,12 @@ func _add_side_wall_rays() -> void:
 		_side_rays.append(r)
 
 
-## 맞은 가슴 레이들의 법선 평균 (하나도 안 맞으면 ZERO).
+## 가운데 가슴 레이 법선에 옆 레이 법선을 걸러 섞는다 (Locomotion.average_wall_normal). 가운데가 맞았을 때만 부른다.
 func _wall_ray_normal() -> Vector3:
-	var sum := Vector3.ZERO
-	for r: RayCast3D in [_wall_ray] + _side_rays:
-		if r.is_colliding():
-			sum += r.get_collision_normal()
-	return sum.normalized() if sum != Vector3.ZERO else Vector3.ZERO
+	var sides := []
+	for r: RayCast3D in _side_rays:
+		sides.append(r.get_collision_normal() if r.is_colliding() else Vector3.ZERO)
+	return Locomotion.average_wall_normal(_wall_ray.get_collision_normal(), sides)
 
 
 func _sense() -> Dictionary:

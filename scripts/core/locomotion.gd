@@ -264,6 +264,16 @@ func move_dir(intent: InputIntent) -> Vector3:
 const CLIMB_MIN_SLOPE_COS := 0.51     ## cos 60° = 0.5, 경계에서 겹치게 약간 크게
 const CLIMB_KEEP_SLOPE_COS := 0.62    ## 이미 등반 중이면 약 52°까지 계속 붙어 있다 (경계 근처 깜빡임 방지)
 
+## 가슴 레이 여러 개의 법선 평균 (가운데 레이 기준). 옆 레이는 스스로 오를 수 있는 면이고 가운데 법선과 90° 안일 때만 섞는다
+## (높이 지도의 계단 절벽은 바로잡고, 앞의 경사 바닥·뒤쪽 면에 맞은 옆 레이가 벽을 지우지 않게). ZERO = 맞지 않음.
+static func average_wall_normal(center: Vector3, sides: Array) -> Vector3:
+	var sum := center
+	for n: Vector3 in sides:
+		if n != Vector3.ZERO and is_climbable(n, false) and n.dot(center) >= 0.0:
+			sum += n
+	return sum.normalized()
+
+
 static func is_climbable(normal: Vector3, climbing := false) -> bool:
 	return normal.y < (CLIMB_KEEP_SLOPE_COS if climbing else CLIMB_MIN_SLOPE_COS) and normal.y > -0.3
 

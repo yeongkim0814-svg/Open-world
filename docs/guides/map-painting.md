@@ -88,5 +88,5 @@
 
 ## 6. GPT 등 다른 도구로 만든 지도
 
-`maps/first_island/source_gpt/`에 원본을 두고 `python3 tools/fix_gpt_map.py`(클라우드)로 보정한다:
+`maps/first_island/source_gpt/`에 원본을 두고 `python3 tools/fix_gpt_map.py`(클라우드, Python 3 + Pillow 필요)로 보정한다:
 범례색 맞추기(흐린 경계 정리), 고산 안쪽 절벽 고리, 수문·마을·개천 위치. 보정 규칙은 도구 맨 위 주석에 있다.

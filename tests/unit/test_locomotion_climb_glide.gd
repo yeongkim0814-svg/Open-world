@@ -221,3 +221,16 @@ func test_hop_guard_expires_without_landing():            # 경사에 착지(바
 		l.velocity.y = maxf(l.velocity.y, -2.0)           # 경사를 미끄러지는 느린 낙하
 	l.step(_intent(Vector2(0, 1)), wall, DT)
 	assert_eq(l.state, Locomotion.State.CLIMBING)
+
+## 2km 리뷰: 가슴 레이 3개 평균 — 계단 절벽은 평균으로 바로잡되, 옆 레이가 엉뚱한 면(앞의 경사 바닥·옆 물체)에 맞아도 벽을 잃지 않음.
+func test_side_rays_fix_staircase_wall():
+	var n := Locomotion.average_wall_normal(Vector3(0.707, 0.0, 0.707), [Vector3(-0.707, 0.0, 0.707), Vector3(0.707, 0.0, 0.707)])
+	assert_true(Vector3(0, 0, 1).angle_to(n) < deg_to_rad(30.0), "계단 법선 평균이 실제 벽(+z) 쪽: %s" % n)
+
+func test_side_ray_on_floor_ignored():
+	var n := Locomotion.average_wall_normal(Vector3(0, 0, 1), [Vector3(0, 0.9, 0.436), Vector3.ZERO])
+	assert_true(n.is_equal_approx(Vector3(0, 0, 1)), "옆 레이가 바닥에 맞으면 가운데 법선만: %s" % n)
+
+func test_side_ray_facing_away_ignored():
+	var n := Locomotion.average_wall_normal(Vector3(0, 0, 1), [Vector3(0, 0, -1), Vector3(1, 0, 0)])
+	assert_true(Vector3(0, 0, 1).angle_to(n) < deg_to_rad(46.0), "반대쪽 면은 빼고, 옆 벽까지만 섞음: %s" % n)
