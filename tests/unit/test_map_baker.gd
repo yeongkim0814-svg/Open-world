@@ -1,0 +1,102 @@
+extends TestCase
+## 굽기. 크기 256, 세계 256m.
+
+const S := 256
+const W := 256.0
+
+func _blank() -> Image:
+	var img := Image.create(S, S, false, Image.FORMAT_RGBA8)
+	img.fill(Color.WHITE)
+	return img
+
+func _height_img(top: int, bottom: int) -> Image:
+	var img := _blank()
+	var pal := MapLegend.height_palette()
+	img.fill_rect(Rect2i(0, 0, S, S / 2), pal[top])
+	img.fill_rect(Rect2i(0, S / 2, S, S / 2), pal[bottom])
+	return img
+
+func _markers_img() -> Image:
+	var img := _blank()
+	img.fill_rect(Rect2i(30, 30, 6, 6), MapLegend.MARKERS["lake"])      # 세계 약 (−95, −95)
+	img.fill_rect(Rect2i(230, 40, 6, 6), MapLegend.MARKERS["tower"])
+	img.fill_rect(Rect2i(200, 200, 6, 6), MapLegend.MARKERS["start"])
+	return img
+
+func _layers(height: Image, paths = null) -> Dictionary:
+	var l := {"height": height, "markers": _markers_img()}
+	if paths != null:
+		l["paths"] = paths
+	return l
+
+func test_bake_deterministic():
+	var a := MapBaker.bake(_layers(_height_img(3, 4)), S, W)
+	var b := MapBaker.bake(_layers(_height_img(3, 4)), S, W)
+	assert_eq(a["errors"].size(), 0, str(a["errors"]))
+	assert_eq(a["height"], b["height"])
+	assert_eq(a["zones"], b["zones"])
+	assert_eq(a["paths"], b["paths"])
+	assert_eq(a["height"].size(), S * S)
+	assert_eq(a["zones"].size(), S * S)
+	assert_eq(a["zones"][5 * S + 5], 0, "구역 비어 있음 = 초원")
+
+func test_encode_roundtrip():
+	var h := PackedFloat32Array()
+	h.resize(S * S)
+	for i in S * S:
+		h[i] = -16.0 + 106.0 * fmod(i * 0.6180339, 1.0)      # 범위 전체
+	h[0] = -16.0
+	h[1] = 90.0
+	var img := MapBaker.encode_height(h, S)
+	assert_eq(img.get_width(), S)
+	assert_eq(img.get_format(), Image.FORMAT_RGB8)
+	var f := HeightField.new(img, W, -16.0, 90.0)
+	var worst := 0.0
+	for j in range(0, S, 5):
+		for i in range(0, S, 7):
+			var x := (float(i) / (S - 1) - 0.5) * W
+			var z := (float(j) / (S - 1) - 0.5) * W
+			worst = maxf(worst, absf(f.height_at(x, z) - h[j * S + i]))
+	assert_true(worst < 0.01, "왕복 오차 %.4f m" % worst)
+
+func test_path_dig_and_flatten():
+	var base := MapBaker.bake(_layers(_height_img(3, 4)), S, W)["height"] as PackedFloat32Array
+	# 흙길: 가로로 난 길, 남북 비탈 한가운데 (z ≈ 0), 폭 5
+	var paths := _blank()
+	paths.fill_rect(Rect2i(150, S / 2 - 2, 60, 5), MapLegend.path_palette()[0])
+	# 수로: 평지 위 세로 줄 (x ≈ 100.., z ≈ 200 근처가 아닌 곳), 폭 3
+	paths.fill_rect(Rect2i(100, 175, 3, 40), MapLegend.path_palette()[2])
+	var baked := MapBaker.bake(_layers(_height_img(3, 4), paths), S, W)
+	var h := baked["height"] as PackedFloat32Array
+	var p := baked["paths"] as PackedByteArray
+	assert_eq(p[(S / 2) * S + 170], 1, "흙길 = 1")
+	assert_eq(p[190 * S + 101], 3, "수로 = 3")
+	var x := 180
+	var base_range := absf(base[(S / 2 - 2) * S + x] - base[(S / 2 + 2) * S + x])
+	var new_range := absf(h[(S / 2 - 2) * S + x] - h[(S / 2 + 2) * S + x])
+	assert_true(base_range > 0.3, "비탈 확인 %.3f" % base_range)
+	assert_true(new_range < base_range, "길 가로 편차 줄어듦 %.3f < %.3f" % [new_range, base_range])
+	var worst := 0.0
+	for j in range(S / 2 - 2, S / 2 + 3):
+		for i in range(150, 210):
+			worst = maxf(worst, absf(h[j * S + i] - base[j * S + i]))
+	assert_true(worst <= 0.5 + 0.001, "흙길 변화 ≤ 0.5m: %.3f" % worst)
+	assert_almost(base[190 * S + 101] - h[190 * S + 101], 1.5, 0.001, "수로 1.5m 파냄")
+	assert_almost(h[190 * S + 110], base[190 * S + 110], 0.001, "수로 밖은 그대로")
+
+func test_missing_required_layer_errors():
+	var no_markers := MapBaker.bake({"height": _height_img(3, 3)}, S, W)
+	assert_true(no_markers["errors"].size() > 0)
+	var no_height := MapBaker.bake({"markers": _markers_img()}, S, W)
+	assert_true(no_height["errors"].size() > 0)
+	var empty_markers := MapBaker.bake({"height": _height_img(3, 3), "markers": _blank()}, S, W)
+	assert_true(empty_markers["errors"].size() >= 3, "필수 표식 없음 오류: %s" % str(empty_markers["errors"]))
+	var rect := Image.create(300, 200, false, Image.FORMAT_RGBA8)
+	var bad := MapBaker.bake({"height": rect, "markers": _markers_img()}, S, W)
+	assert_true(bad["errors"].size() > 0 and "300" in bad["errors"][0], "크기가 오류에 나옴: %s" % str(bad["errors"]))
+
+func test_preview_size():
+	var baked := MapBaker.bake(_layers(_height_img(3, 4)), S, W)
+	var img := MapBaker.preview(baked, S)
+	assert_eq(img.get_width(), 512)
+	assert_eq(img.get_height(), 512)
