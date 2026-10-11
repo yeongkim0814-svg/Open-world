@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://scripts/nodes/aqueduct.gd" id="aqueduct"]
 [ext_resource type="Environment" path="res://resources/env/first_island_env.tres" id="env"]
 [ext_resource type="PackedScene" path="res://scenes/env/backdrop.tscn" id="backdrop"]
+[ext_resource type="PackedScene" path="res://scenes/env/rock_scatter.tscn" id="rocks"]
 
 [sub_resource type="ShaderMaterial" id="SeaMat"]
 shader = ExtResource("vshader")
@@ -409,4 +410,6 @@ script = ExtResource("hud")
 player = NodePath("../../Player")
 
 [node name="GrassField" parent="." instance=ExtResource("grass_field")]
+
+[node name="RockScatter" parent="." instance=ExtResource("rocks")]
 terrain = NodePath("../Terrain")
