@@ -12,6 +12,9 @@ const MAX_H := 90.0
 const SAMPLES := 65               # 충돌 구역 표본 수 (64m + 1, 간격 1m)
 const REQUEUE_MOVE := 1.0         # 카메라가 이만큼(m) 움직이면 대기열 다시 계산
 
+## 이 높이보다 낮기만 한 구역은 그리지 않는다 (바다 불투명: 깊이 약 1m부터)
+const SKIP_BELOW := -2.0
+
 @export var baked_dir := ""
 @export var material: Material:
 	set(value):
@@ -31,6 +34,7 @@ var _queue: Array = []            # [priority, key, step] — 우선순위 내�
 var _last_cam := Vector2(INF, INF)
 var _last_build_ms := 0.0
 var _focus: Node3D
+var _skip := {}                   # Vector2i → true: 깊은 바다 아래라 그리지 않는 구역 (충돌은 따로 만든다)
 var _body: StaticBody3D
 var _shapes := {}                 # Vector2i → CollisionShape3D
 var _shape_queue: Array = []      # [dist, key] — 내림차순
@@ -50,10 +54,9 @@ func _ready() -> void:
 ## <baked_dir>/height.png 를 읽어 지형을 준비한다.
 func load_map() -> void:
 	var path := baked_dir.path_join("height.png")
-	var img := Image.load_from_file(path)
-	if img == null or img.is_empty():
-		var tex := load(path) as Texture2D          # 내보낸 빌드: 원본 PNG 가 없고 가져온 텍스처만 있다
-		img = tex.get_image() if tex != null else null
+	# 구운 PNG 는 무손실 Image 리소스로 가져온다 (내보낸 빌드·웹에서도 동작, 16비트 높이 보존).
+	var res = load(path) if ResourceLoader.exists(path) else null
+	var img: Image = res if res is Image else (res.get_image() if res is Texture2D else Image.load_from_file(path))
 	if img == null or img.is_empty():
 		push_error("ChunkedTerrain: 높이 지도를 읽을 수 없음: %s" % path)
 		return
@@ -64,6 +67,7 @@ func load_map() -> void:
 func use_field(f: HeightField) -> void:
 	_clear()
 	field = f
+	_skip = _underwater_chunks(f)
 	_body = StaticBody3D.new()
 	_body.name = "Collision"
 	add_child(_body)
@@ -153,6 +157,8 @@ func _requeue(cam_xz: Vector2) -> void:
 	var cam_chunk := TerrainLod.chunk_of(cam_xz, world)
 	_queue.clear()
 	for key: Vector2i in want:
+		if _skip.has(key):
+			continue
 		var s: float = want[key]
 		if _steps.get(key, 0.0) == s:
 			continue
@@ -303,3 +309,19 @@ func _clear() -> void:
 		remove_child(_body)
 		_body.free()
 		_body = null
+
+
+## 가장 높은 곳도 SKIP_BELOW 아래인 구역 = 불투명한 깊은 바다에 완전히 가려짐 → 메시 생략 (8m 간격 표본).
+static func _underwater_chunks(f: HeightField) -> Dictionary:
+	var out := {}
+	var n := TerrainLod.chunks_per_side(f.world_size)
+	var half := f.world_size * 0.5
+	for iz in n:
+		for ix in n:
+			var top := -INF
+			for sz in 9:
+				for sx in 9:
+					top = maxf(top, f.height_at(-half + ix * TerrainLod.CHUNK + sx * 8.0, -half + iz * TerrainLod.CHUNK + sz * 8.0))
+			if top < SKIP_BELOW:
+				out[Vector2i(ix, iz)] = true
+	return out

@@ -108,3 +108,10 @@ func test_village_flattened():
 				lo = minf(lo, h[y * S + x])
 				hi = maxf(hi, h[y * S + x])
 	assert_true(hi - lo < 0.3, "마을 편차 %.3f" % (hi - lo))
+
+## 1km 등반 스윕: 안쪽 벽 윗부분이 둥글게 누우면 등반 유지(경사)와 꼭대기 판정 사이에 끼어 깜빡인다 → 직선 벽 + 날카로운 테두리.
+func test_lake_inner_wall_has_sharp_lip():
+	var top := MapStamps.lake_profile(MapStamps.LAKE_WALL_R, 5.0)
+	var below := MapStamps.lake_profile(MapStamps.LAKE_WALL_R - 0.5, 5.0)
+	assert_true(top - below >= 5.0, "테두리 바로 아래 0.5m 구간도 가팔라야 함 (차 %.2f)" % (top - below))
+	assert_almost(MapStamps.lake_profile(50.0, 5.0), 16.0, 0.01, "테두리 너머는 평평한 둑 꼭대기")

@@ -37,8 +37,10 @@ func _arrays(mesh: ArrayMesh) -> Array:
 
 func test_step_for_distances():
 	assert_eq(TerrainLod.step_for(0.0), 1.0)
-	assert_eq(TerrainLod.step_for(159.9), 1.0)
-	assert_eq(TerrainLod.step_for(160.0), 4.0)
+	assert_eq(TerrainLod.step_for(95.9), 1.0)
+	assert_eq(TerrainLod.step_for(96.0), 2.0)
+	assert_eq(TerrainLod.step_for(223.9), 2.0)
+	assert_eq(TerrainLod.step_for(224.0), 4.0)
 	assert_eq(TerrainLod.step_for(479.9), 4.0)
 	assert_eq(TerrainLod.step_for(480.0), 16.0)
 	assert_eq(TerrainLod.step_for(5000.0), 16.0)
@@ -141,7 +143,7 @@ func test_nearest_3x3_built_first():
 		for dx in [-1, 0, 1]:
 			var k := Vector2i(2 + dx, 2 + dz)
 			assert_true(t.has_chunk(k), "3×3 %s" % k)
-			assert_eq(t.chunk_step(k), 1.0)
+			assert_eq(t.chunk_step(k), TerrainLod.step_for(Vector2(cam.x, cam.z).distance_to(TerrainLod.chunk_center(k, SIZE))))
 	t.free()
 
 
@@ -257,4 +259,30 @@ func test_collision_swaps_on_crossing():
 	assert_false(s.has(Vector2i(0, 0)), "멀어진 구역 충돌 제거")
 	assert_true(s.has(Vector2i(3, 1)) and s.has(Vector2i(3, 0)) and s.has(Vector2i(2, 2)))
 	assert_eq(s.size(), 6, "월드 가장자리에서 3×2")
+	t.free()
+
+
+## 1km 측정: 깊은 바다 아래 구역(불투명 바다에 가려짐)은 메시를 만들지 않는다 — 그리기 호출 절약.
+func test_underwater_chunks_skipped():
+	var n := 257
+	var data := PackedByteArray()
+	data.resize(n * n * 3)
+	for pz in n:
+		for px in n:
+			var h := 10.0 if px < 64 and pz < 64 else -10.0   # 왼쪽 위 구역만 땅
+			var tv := (h - MIN_H) / (MAX_H - MIN_H) * 255.0
+			var i := (pz * n + px) * 3
+			data[i] = int(floor(tv))
+			data[i + 1] = mini(int(floor((tv - floor(tv)) * 256.0)), 255)
+	var f := HeightField.new(Image.create_from_data(n, n, false, Image.FORMAT_RGB8, data), SIZE, MIN_H, MAX_H)
+	var t := _terrain(f)
+	var frames := 0
+	while frames == 0 or t.stats()["pending"] > 0:
+		t.step(Vector3.ZERO, 50.0)
+		frames += 1
+		if frames > 5000:
+			break
+	assert_true(t.has_chunk(Vector2i(0, 0)), "땅 구역은 만든다")
+	assert_false(t.has_chunk(Vector2i(3, 3)), "깊은 바다 구역은 건너뛴다")
+	assert_true(t.stats()["chunks"] < 16)
 	t.free()

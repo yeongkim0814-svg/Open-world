@@ -51,14 +51,20 @@ static func _stamp_lake(h: PackedFloat32Array, size: int, world: float, cx: floa
 			var dx := _w(px, size, world) - cx
 			var d := sqrt(dx * dx + dz * dz)
 			var i := pz * size + px
-			if d <= LAKE_FLOOR_R:
-				h[i] = LAKE_FLOOR
-			elif d <= LAKE_WALL_R:
-				h[i] = lerpf(LAKE_FLOOR, DIKE_TOP, smoothstep(LAKE_FLOOR_R, LAKE_WALL_R, d))
-			elif d <= DIKE_OUTER_R:
-				h[i] = DIKE_TOP
-			elif d < SLOPE_END_R:
-				h[i] = lerpf(DIKE_TOP, h[i], smoothstep(DIKE_OUTER_R, SLOPE_END_R, d))
+			h[i] = lake_profile(d, h[i])
+
+
+## 저수호 단면: 바닥 → 직선 안쪽 벽(테두리가 둥글면 등반 깜빡임) → 평평한 둑 꼭대기 → 바깥 비탈 → 원지형(base).
+static func lake_profile(d: float, base: float) -> float:
+	if d <= LAKE_FLOOR_R:
+		return LAKE_FLOOR
+	if d <= LAKE_WALL_R:
+		return lerpf(LAKE_FLOOR, DIKE_TOP, (d - LAKE_FLOOR_R) / (LAKE_WALL_R - LAKE_FLOOR_R))
+	if d <= DIKE_OUTER_R:
+		return DIKE_TOP
+	if d < SLOPE_END_R:
+		return lerpf(DIKE_TOP, base, smoothstep(DIKE_OUTER_R, SLOPE_END_R, d))
+	return base
 
 
 static func _stamp_tower(h: PackedFloat32Array, size: int, world: float, cx: float, cz: float) -> void:

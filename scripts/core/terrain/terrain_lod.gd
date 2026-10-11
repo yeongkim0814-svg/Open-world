@@ -1,10 +1,11 @@
 class_name TerrainLod
 extends RefCounted
-## 구역(64m) 단위 LOD 선택. 카메라 xz → 구역 중심 거리로 격자 간격(1 / 4 / 16 m)을 정한다.
+## 구역(64m) 단위 LOD 선택. 카메라 xz → 구역 중심 거리로 격자 간격(1 / 2 / 4 / 16 m)을 정한다.
 ## 구역 (ix, iz) 의 원점(최소 모서리) = (-world/2 + ix·CHUNK, -world/2 + iz·CHUNK).
 
 const CHUNK := 64.0
-const NEAR := 160.0   # 이 거리 미만 → 1m
+const NEAR := 96.0    # 이 거리 미만 → 1m (1km 측정: 160m면 삼각형 30만 초과)
+const NEAR2 := 224.0  # 이 거리 미만 → 2m
 const MID := 480.0    # 이 거리 미만 → 4m, 그 밖 → 16m
 
 
@@ -12,6 +13,8 @@ const MID := 480.0    # 이 거리 미만 → 4m, 그 밖 → 16m
 static func step_for(dist: float) -> float:
 	if dist < NEAR:
 		return 1.0
+	if dist < NEAR2:
+		return 2.0
 	if dist < MID:
 		return 4.0
 	return 16.0

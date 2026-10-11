@@ -18,11 +18,18 @@ const SCENES := {
 		"far": [Vector3(120, 50, 140), Vector3(0, 0, 0)],
 		"ruin": [Vector3(-12, 2.5, 10), Vector3(-24, 2.0, -4)],
 	},
+	"island_1km": {
+		"start": [Vector3(14, 2.5, 352), Vector3(0, 12, 200)],
+		"lake": [Vector3(45, 14, 10), Vector3(0, 0, -40)],
+		"north": [Vector3(-20, 3, -170), Vector3(-10, 20, -320)],
+		"west": [Vector3(-160, 4, 40), Vector3(-270, 10, 0)],
+		"air": [Vector3(330, 260, 470), Vector3(0, 0, -40)],
+	},
 }
 const SETTLE_FRAMES := 45
 
 var s; var tag := "shot"; var scene_name := "first_island"; var modes := ["grey", "color"]
-var queue := []; var frame := 0; var cam: Camera3D
+var queue := []; var frame := 0; var cam: Camera3D; var t := 0
 
 
 func _initialize() -> void:
@@ -66,7 +73,8 @@ func _process(_dt: float) -> bool:
 	if queue.is_empty():
 		quit(); return false
 	var cur = queue[0]
-	if frame % SETTLE_FRAMES == 3:
+	t += 1
+	if t == 3:
 		if cam == null:
 			cam = Camera3D.new(); cam.fov = 70.0; cam.far = 4000.0; s.add_child(cam); cam.make_current()
 		var v = SCENES[scene_name][cur[0]]
@@ -79,9 +87,10 @@ func _process(_dt: float) -> bool:
 		cam.global_position = pos
 		cam.look_at(at, Vector3.UP)
 		_set_recovery(mode_value(cur[1]))
-	elif frame % SETTLE_FRAMES == 0:
+	elif t >= SETTLE_FRAMES and not (s.has_method("busy") and s.busy() and t < 1200):   # 지형 구역이 다 만들어질 때까지
 		var path := "/tmp/claude-0/shots/%s_%s_%s.png" % [tag, cur[0], cur[1]]
 		root.get_texture().get_image().save_png(path)
 		print("saved ", path)
 		queue.pop_front()
+		t = 0
 	return false
