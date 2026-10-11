@@ -7,6 +7,7 @@ extends RefCounted
 
 const LIT := preload("res://shaders/style_lit.gdshader")
 const FOLIAGE := preload("res://shaders/style_foliage.gdshader")
+const ROCK := preload("res://shaders/style_rock.gdshader")
 
 const TREE_SEED_BASE := 11   ## 나무 시드 = BASE + 변형 번호 × 7
 const SHRUB_SEED_BASE := 5
@@ -29,7 +30,7 @@ func _init() -> void:
 	leaves.set_shader_parameter("height_depleted", 1.0)
 	leaves.set_shader_parameter("wind_strength", 0.02)
 	_trunk_color(leaves)
-	var rock_mat := _lit("rock")
+	var rock_mat := _rock()
 	for id in VegPlacement.mesh_ids():
 		var parts := id.split("_")
 		var variant := int(parts[parts.size() - 1])
@@ -112,11 +113,23 @@ static func _merged(src: ArrayMesh, mat: Material) -> ArrayMesh:
 	return m
 
 
-## 줄기색 = 땅색 × 0.55 (예전 style_lit 줄기 재질과 같은 값)
+## 줄기색 = 팔레트 trunk (잎과 분리), 회복 0 에서 수관을 15 % 오그라뜨려 시든 나무로 읽히게 한다 (B2 9.2)
 func _trunk_color(m: ShaderMaterial) -> void:
 	m.set_shader_parameter("has_trunk", true)
-	m.set_shader_parameter("trunk_depleted", StylePalette.DEPLETED["ground"] * 0.55)
-	m.set_shader_parameter("trunk_restored", StylePalette.RESTORED["ground"] * 0.55)
+	m.set_shader_parameter("trunk_depleted", StylePalette.DEPLETED["trunk"])
+	m.set_shader_parameter("trunk_restored", StylePalette.RESTORED["trunk"])
+	m.set_shader_parameter("canopy_shrink", 0.15)
+
+
+## 바위 재질: 몸체 + 윗면 이끼 (style_rock)
+func _rock() -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = ROCK
+	m.set_shader_parameter("color_depleted", StylePalette.DEPLETED["rock"])
+	m.set_shader_parameter("color_restored", StylePalette.RESTORED["rock"])
+	m.set_shader_parameter("moss_depleted", StylePalette.DEPLETED["moss"])
+	m.set_shader_parameter("moss_restored", StylePalette.RESTORED["moss"])
+	return m
 
 
 func _trunk_dims(m: ArrayMesh) -> Vector2:

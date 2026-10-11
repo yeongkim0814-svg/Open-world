@@ -28,6 +28,16 @@ uniform vec3 path_restored[2] : source_color;
 uniform bool flat_shading = false;
 uniform float flat_fade_end = 150.0;
 
+// 초원 풀밭 질감 (B2 9.3): 초원 구역 땅색에만 큰 얼룩(파장 ~30 m, ±6 %) + 풀결 얼룩(파장 ~2.5 m, 바람 방향으로 늘임, ±4 %). 결 얼룩은 카메라 40 m 밖에서 끈다.
+uniform float meadow_patch_amp = 0.06;
+uniform float meadow_grain_amp = 0.04;
+uniform float meadow_patch_wavelength = 30.0;
+uniform float meadow_grain_wavelength = 2.5;
+uniform float meadow_grain_stretch = 4.0;      // 풀결이 바람 방향으로 늘어난 배율
+uniform vec2 meadow_grain_dir = vec2(0.8, 0.6);
+uniform float meadow_grain_fade_start = 30.0;
+uniform float meadow_grain_fade_end = 40.0;
+
 uniform float zone_blend_m = 14.0;   // 구역 경계가 섞이는 폭 (m) — 칠한 경계의 각진 칸이 보이지 않게
 uniform float path_edge = 0.18;      // 길 가장자리 부드러움 (0~0.5)
 
@@ -64,14 +74,24 @@ void fragment() {
 		vec2 gi = floor(g0);
 		vec2 gf = smoothstep(0.0, 1.0, g0 - gi);
 		vec3 zc[4];
+		float mw[4];   // 각 꼭짓점이 초원(구역 0)인가
 		for (int k = 0; k < 4; k++) {
 			vec2 corner = (gi + vec2(float(k & 1), float(k >> 1))) * cell;
 			ivec2 t = clamp(ivec2(corner + 0.5), ivec2(0), ivec2(int(map_px) - 1));
 			int zi = clamp(int(texelFetch(zone_map, t, 0).r * 255.0 + 0.5), 0, 6);
 			zc[k] = mix(zone_depleted[zi], zone_restored[zi], r);
+			mw[k] = zi == 0 ? 1.0 : 0.0;
 		}
+		float meadow = mix(mix(mw[0], mw[1], gf.x), mix(mw[2], mw[3], gf.x), gf.y);
 		vec3 zb = mix(mix(zc[0], zc[1], gf.x), mix(zc[2], zc[3], gf.x), gf.y);
 		grass = style_color(zb, zb, r, v_world, noise_amount);
+		// 풀밭 질감: 물체 없이 "풀밭"으로 읽히게 하는 두 겹 얼룩 (초원 구역 가중 meadow 만큼만)
+		vec2 wd = normalize(meadow_grain_dir);
+		vec2 wp = vec2(dot(v_world.xz, wd), dot(v_world.xz, vec2(-wd.y, wd.x)));
+		float patch_n = (big_noise(v_world.xz / meadow_patch_wavelength + 11.7) - 0.5) * 2.0 * meadow_patch_amp;
+		float grain_n = (big_noise(vec2(wp.x / (meadow_grain_wavelength * meadow_grain_stretch), wp.y / meadow_grain_wavelength) + 23.1) - 0.5) * 2.0 * meadow_grain_amp;
+		float grain_fade = 1.0 - smoothstep(meadow_grain_fade_start, meadow_grain_fade_end, distance(v_world, CAMERA_POSITION_WORLD));
+		grass *= 1.0 + meadow * (patch_n + grain_n * grain_fade);
 	}
 	vec3 c = mix(grass, ground, g);
 	c = mix(c, sand, smoothstep(sand_height + 0.4, sand_height - 0.2, v_world.y));

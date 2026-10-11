@@ -2,11 +2,13 @@ class_name RockGen
 extends RefCounted
 ## 바위 생성기: 정이십면체(세분 1회, 80면) → 저주파 변위 → 크기 맞춤 → 평면 깎기 2~4개 → 평면 음영용 메시.
 ## 같은 (seed, kind) = 같은 메시. 둥글고 묵직한 덩어리 위주(뾰족한 가시 금지).
+## 정점색: R = G = 명도, B = 윗면 표시 (B2 9.2: 법선 y > 0.6 인 면 = 1.0, 그 밖은 명도 × 0.9 < 0.95 — 이끼 셰이더가 B ≥ 0.95 를 윗면으로 읽는다), A = AO.
 
 enum Kind { ROUND, SLAB, PILLAR }
 
 const PILLAR_HEIGHT := 2.5
 const AO_STRENGTH := 0.45
+const TOP_NORMAL_Y := 0.6   ## 이 값보다 법선 y 가 크면 윗면(이끼) 표시
 
 
 ## 바위 메시를 만든다. 바닥이 y=0, 가로 중심이 원점.
@@ -46,6 +48,8 @@ static func build(seed: int, kind: int) -> ArrayMesh:
 		n = Vector3(n.x, maxf(n.y, -0.1), n.z).normalized()   # 아래로 향한 깎임(처마) 방지
 		if kind == Kind.PILLAR and c == 0:
 			n = Vector3(rng.randf_range(-0.35, 0.35), 1.0, rng.randf_range(-0.35, 0.35)).normalized()
+		elif kind == Kind.ROUND and c == 0:
+			n = Vector3(rng.randf_range(-0.5, 0.5), 1.0, rng.randf_range(-0.5, 0.5)).normalized()   # 윗면 이끼가 덩어리로 읽히게 위쪽 평면 하나
 		elif kind == Kind.SLAB and c == 0:
 			n = Vector3(rng.randf_range(-0.2, 0.2), 1.0, rng.randf_range(-0.2, 0.2)).normalized()
 		var reach := -INF
@@ -78,7 +82,11 @@ static func build(seed: int, kind: int) -> ArrayMesh:
 		var cc: Vector3 = verts[f[2]]
 		var fn := (b - a).cross(cc - a).normalized()
 		var br := clampf(1.0 + 0.07 * fn.y + rng.randf_range(-0.03, 0.03), 0.9, 1.1)
-		kit.add_tri(a, b, cc, Color(br, br, br, 1.0))
+		if fn.y > TOP_NORMAL_Y:
+			kit.add_tri(a, b, cc, Color(br, br, 1.0, 1.0))
+		else:
+			var bn := clampf(br * 0.9, 0.8, 0.9)   # 0.9 이하 → 윗면 표시(≥ 0.95)와 8비트 저장 후에도 구분됨
+			kit.add_tri(a, b, cc, Color(bn, bn, bn, 1.0))
 	kit.bake_height_ao(0.0, height, AO_STRENGTH)
 	return kit.commit()
 

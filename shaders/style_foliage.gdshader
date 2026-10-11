@@ -4,6 +4,7 @@ render_mode diffuse_lambert, specular_schlick_ggx, cull_disabled;
 // 정점색 (ArrayMesh는 8비트 0~1): R = 명도(×1.1), G = 바람 가중(뿌리 0 → 꼭대기 1), B ≥ 0.5 = 꽃 정점, A = AO.
 // MultiMesh의 INSTANCE_CUSTOM.r = 0~1 문턱값: 인스턴스 위치의 밀도보다 크면 정점을 접어 숨긴다.
 // UV.x > 0.5 = 줄기 정점 (VegCatalog 가 줄기·잎을 한 면으로 합친 나무·덤불): 줄기색 × 정점색 RGB, 바람 없음 (style_lit 과 같은 색).
+// canopy_shrink > 0 이면 회복 0 일수록 잎 덩어리를 줄기 쪽으로 모은다 (B2 실루엣 구분).
 // instance_tint 켜면: .g = 명도(0..1 → ×0.85..1.12), .b = 색온도(0 차가움 ↔ 1 따뜻함, ±6 % 녹/황 이동), .a = 꽃색(< 0.5 노랑, ≥ 0.5 흰색).
 #include "res://shaders/style_common.gdshaderinc"
 
@@ -26,8 +27,9 @@ uniform float fade_start = 24.0;      // 카메라 거리 페이드 (풀: 먼 �
 uniform float fade_end = 36.0;
 uniform float height_depleted = 0.6;   // 고갈 시 키 배율 (나무 잎은 1.0으로 둔다)
 uniform bool has_trunk = false;        // true 면 UV.x 로 줄기 정점을 가른다
-uniform vec3 trunk_depleted : source_color = vec3(0.3, 0.27, 0.22);
-uniform vec3 trunk_restored : source_color = vec3(0.3, 0.25, 0.2);
+uniform vec3 trunk_depleted : source_color = vec3(0.369, 0.314, 0.271);   // 줄기색은 잎과 따로 (StylePalette trunk)
+uniform vec3 trunk_restored : source_color = vec3(0.420, 0.337, 0.251);
+uniform float canopy_shrink = 0.0;     // 회복 0 에서 수관(줄기 아닌 정점)을 모델 축 쪽으로 오그라뜨리는 비율 (나무 0.15 = 잎 성김)
 
 varying vec3 v_world;
 varying float v_r;
@@ -42,6 +44,7 @@ void vertex() {
 	v_trunk = has_trunk ? step(0.5, UV.x) : 0.0;
 	vec3 p = VERTEX;
 	p.y *= mix(height_depleted, 1.0, r);
+	p.xz *= 1.0 - canopy_shrink * (1.0 - r) * (1.0 - v_trunk);   // 회복 0 수관 오그라뜨림 (줄기는 그대로)
 	float wg = COLOR.g * (1.0 - v_trunk);   // 줄기 정점색 G 는 색이지 바람 가중이 아니다
 	// 부드러운 흔들림: 위치마다 위상이 달라 군집이 한꺼번에 움직이지 않는다.
 	float ph = TIME * wind_speed + origin.x * 0.7 + origin.z * 0.5;
