@@ -36,8 +36,9 @@ uniform float grass_avg_lum = 0.22;
 uniform vec3 rock_color : source_color = vec3(0.60, 0.53, 0.45);       // 따뜻한 회갈색
 uniform float rock_tint : hint_range(0.0, 1.0) = 0.5;
 uniform float rock_avg_lum = 0.075;
-uniform vec3 dirt_color : source_color = vec3(0.50, 0.42, 0.31);
-uniform float dirt_tint : hint_range(0.0, 1.0) = 0.4;
+uniform vec3 dirt_color : source_color = vec3(0.60, 0.57, 0.41);       // 마른 풀 섞인 흙 (풀색에 가깝게)
+uniform float dirt_tint : hint_range(0.0, 1.0) = 0.65;
+uniform float dirt_grass_mix : hint_range(0.0, 1.0) = 0.35;              // 흙을 풀 어두운 색 쪽으로
 uniform float dirt_avg_lum = 0.10;
 uniform vec3 sand_color : source_color = vec3(0.86, 0.80, 0.64);       // 옅은 모래
 uniform float sand_tint : hint_range(0.0, 1.0) = 0.8;
@@ -46,7 +47,8 @@ uniform float sand_avg_lum = 0.18;
 uniform float rock_full_y = 0.70;       // 법선 y 이하 = 전부 바위 (≈45°)
 uniform float rock_start_y = 0.82;      // 이 위 = 바위 없음 (≈35°)
 uniform float sand_height = 2.0;
-uniform float dirt_patch = 0.66;        // 노이즈 문턱 (낮을수록 흙 많음)
+uniform float dirt_patch = 0.66;        // 노이즈 문턱 (낮을수록 흙 많음) → 평지의 약 15~20%
+uniform float dirt_scale = 14.0;        // 얼룩 크기 m
 uniform float blend_depth = 0.25;       // 높이 경계 폭
 uniform float height_amount = 0.6;
 uniform float normal_strength = 0.9;
@@ -110,7 +112,8 @@ void fragment() {
 	float dist = length(wpos - CAMERA_POSITION_WORLD);
 
 	// 저주파 노이즈: 얼룩·배율 섞기·밝기 변화
-	float n_patch = fbm(xz / 28.0) + (vnoise(xz / 5.0) - 0.5) * 0.15;   // 가장자리 들쭉날쭉
+	float n_patch = fbm(xz / 28.0) + (vnoise(xz / 5.0) - 0.5) * 0.15;   // 풀 밝기 변화용
+	float n_dirt = fbm(xz / dirt_scale + vec2(11.7, 3.1)) + (vnoise(xz / 3.0) - 0.5) * 0.12;   // 흙 얼룩 (작게)
 	float n_macro = fbm(xz / 90.0 + vec2(5.2, 1.3));
 
 	// 두 배율 UV (큰 배율은 37° 돌려 격자 방향도 깨뜨린다)
@@ -124,8 +127,8 @@ void fragment() {
 	float w_rock = 1.0 - smoothstep(rock_full_y, rock_start_y, N.y + jitter);
 	float w_sand = (1.0 - smoothstep(sand_height - 0.6, sand_height + 0.6, wpos.y)) * (1.0 - w_rock);
 	float rest = (1.0 - w_rock) * (1.0 - w_sand);
-	float dirtiness = smoothstep(dirt_patch - 0.12, dirt_patch + 0.12, n_patch);
-	dirtiness = max(dirtiness, 0.6 * (1.0 - smoothstep(0.80, 0.90, N.y)));   // 25~37° 경사 = 흙
+	float dirtiness = smoothstep(dirt_patch - 0.08, dirt_patch + 0.08, n_dirt);
+	dirtiness = max(dirtiness, 0.4 * (1.0 - smoothstep(0.78, 0.86, N.y)));   // 25~37° 경사 = 흙
 	float w_dirt = rest * dirtiness;
 	float w_grass = rest - w_dirt;
 
@@ -147,7 +150,8 @@ void fragment() {
 		sample_planar(dirt_diff, dirt_nor, dirt_arm, uv1 * 1.3, uv2 * 1.3, mixf, c_d, n_d, a_d);
 		float lum = dot(c_d, LUMA);
 		h_d = clamp(lum / dirt_avg_lum, 0.0, 2.0) * 0.5;
-		c_d = mix(c_d, dirt_color * clamp(lum / dirt_avg_lum, 0.5, 1.5), dirt_tint);
+		c_d = mix(c_d, dirt_color * clamp(lum / dirt_avg_lum, 0.6, 1.4), dirt_tint);
+		c_d = mix(c_d, grass_dark * 1.25 * clamp(lum / dirt_avg_lum, 0.7, 1.3), dirt_grass_mix);
 	}
 	if (w_sand > 0.001) {
 		sample_planar(sand_diff, sand_nor, sand_arm, uv1, uv2, mixf, c_s, n_s, a_s);

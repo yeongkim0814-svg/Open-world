@@ -10,7 +10,7 @@ const FOG_GREY := {
 	"volumetric_fog_density": 0.003, "volumetric_fog_albedo": Color(0.8, 0.82, 0.85),
 }
 const FOG_CLEAR := {
-	"fog_light_color": Color(0.75, 0.84, 0.92), "fog_density": 0.0005, "fog_height_density": 0.03,
+	"fog_light_color": Color(0.62, 0.72, 0.86), "fog_density": 0.0005, "fog_height_density": 0.03,
 	"volumetric_fog_density": 0.001, "volumetric_fog_albedo": Color(0.9, 0.94, 1.0),
 }
 const SUN_ENERGY_GREY := 1.6

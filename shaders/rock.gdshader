@@ -9,6 +9,10 @@ uniform sampler2D arm_tex : filter_linear_mipmap_anisotropic, repeat_enable;
 uniform float normal_strength : hint_range(0.0, 2.0) = 1.0;
 uniform vec3 moss_color : source_color = vec3(0.30, 0.42, 0.16);
 uniform float moss_amount : hint_range(0.0, 1.0) = 0.45;
+// 텍스처의 붉은 녹빛을 지형 바위층과 같은 따뜻한 회갈색으로 (밝기는 유지)
+uniform vec3 tint : source_color = vec3(0.60, 0.55, 0.48);
+uniform float tint_amount : hint_range(0.0, 1.0) = 0.7;
+uniform float brightness = 1.15;
 
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -20,6 +24,8 @@ void vertex() {
 
 void fragment() {
 	vec3 albedo = texture(albedo_tex, UV).rgb;
+	float lum = dot(albedo, vec3(0.2126, 0.7152, 0.0722));
+	albedo = mix(albedo, tint * lum / dot(tint, vec3(0.2126, 0.7152, 0.0722)), tint_amount) * brightness;
 	vec3 arm = texture(arm_tex, UV).rgb;
 	NORMAL_MAP = texture(normal_tex, UV).rgb;
 	NORMAL_MAP_DEPTH = normal_strength;

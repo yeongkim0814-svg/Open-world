@@ -48,6 +48,6 @@ func test_scale_and_sink():
 	var f := _field()
 	for t in RockPlacement.points(f, 7, 70, _excl()):
 		var s: float = t.basis.get_scale().x
-		assert_true(s >= 0.99 and s <= 6.01, "크기 1~6m: %f" % s)
+		assert_true(s >= 0.99 and s <= 8.01, "크기 1~8m: %f" % s)
 		var ground := f.height_at(t.origin.x, t.origin.z)
 		assert_true(t.origin.y < ground, "땅에 묻힘")

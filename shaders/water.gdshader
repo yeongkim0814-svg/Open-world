@@ -26,6 +26,17 @@ uniform float rough_grey = 0.5;
 uniform float spec_clear = 0.4;
 uniform float spec_grey = 0.12;
 
+// 원거리: 수평선 쪽 밝은 청록·잔잔한 노멀·높은 거칠기 (탑 꼭대기에서 반짝임이 거슬리지 않게)
+uniform vec3 horizon_color : source_color = vec3(0.30, 0.55, 0.66);
+uniform vec3 grey_horizon : source_color = vec3(0.45, 0.50, 0.54);
+uniform float far_start = 40.0;
+uniform float far_end = 400.0;
+uniform float far_rough = 0.45;
+uniform float far_wave = 0.15;          // 먼 곳 파도 세기 비율
+// 얕은 띠 (호수): 이 깊이(m)까지 밝은 청록을 진하게 → 물가에 청록 띠
+uniform float shallow_band_depth = 0.0;
+uniform float shallow_band_strength = 0.7;
+
 uniform float foam_width = 0.7;
 uniform float foam_strength = 0.8;
 uniform vec3 foam_color : source_color = vec3(0.92, 0.97, 0.98);
@@ -68,10 +79,13 @@ void fragment() {
 	float t = vitality_t(v_world, 10.0);
 
 	// 두 겹 노멀: 서로 다른 크기·방향으로 흐른다
+	float cam_d = length(v_world - CAMERA_POSITION_WORLD);
+	float far_k = smoothstep(far_start, far_end, cam_d);
 	vec2 p = v_world.xz * wave_scale;
 	vec2 g = grad(p + TIME * wave_speed * vec2(1.0, 0.6));
 	g += grad(p * 2.3 - TIME * wave_speed * 1.3 * vec2(0.7, 1.0) + 31.0) * 0.35;
-	vec3 wn = normalize(vec3(-g.x * wave_strength, 1.0, -g.y * wave_strength));
+	float ws = wave_strength * mix(1.0, far_wave, far_k);
+	vec3 wn = normalize(vec3(-g.x * ws, 1.0, -g.y * ws));
 	NORMAL = normalize((VIEW_MATRIX * vec4(wn, 0.0)).xyz);
 
 	// 장면 깊이와의 차 = 물 두께
@@ -84,6 +98,12 @@ void fragment() {
 	dk = sqrt(dk);
 	vec3 col_clear = mix(shallow_color, deep_color, dk);
 	vec3 col_grey = mix(grey_shallow, grey_deep, dk);
+	if (shallow_band_depth > 0.0) {
+		float sb = (1.0 - smoothstep(shallow_band_depth * 0.4, shallow_band_depth, thick)) * shallow_band_strength;
+		col_clear = mix(col_clear, shallow_color * 1.15, sb);
+	}
+	col_clear = mix(col_clear, horizon_color, far_k * 0.85);
+	col_grey = mix(col_grey, grey_horizon, far_k * 0.7);
 	vec3 col = mix(col_grey, col_clear, t);
 
 	// 물가 거품: 얕은 띠 + 일렁이는 노이즈로 끊김
@@ -95,11 +115,14 @@ void fragment() {
 	float fres = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 4.0);
 	float a = mix(min_alpha, max_alpha, 1.0 - exp(-thick / clear_depth));
 	a = max(a, mix(0.9, 1.0, t) * foam);
-	a = clamp(a + fres * 0.5 * t, 0.0, 1.0);
+	if (shallow_band_depth > 0.0) {
+		a = max(a, (1.0 - smoothstep(shallow_band_depth * 0.5, shallow_band_depth, thick)) * smoothstep(0.05, 0.3, thick) * 0.75 * t);
+	}
+	a = clamp(a + fres * 0.5 * t * (1.0 - far_k * 0.6), 0.0, 1.0);
 
 	ALBEDO = col;
 	ALPHA = a;
-	ROUGHNESS = mix(rough_grey, rough_clear, t);
-	SPECULAR = mix(spec_grey, spec_clear, t) * (1.0 - foam);
+	ROUGHNESS = mix(mix(rough_grey, rough_clear, t), max(far_rough, rough_grey * (1.0 - t) + far_rough * t), far_k);
+	SPECULAR = mix(spec_grey, spec_clear, t) * (1.0 - foam) * (1.0 - far_k * 0.4);
 	METALLIC = 0.0;
 }

@@ -17,7 +17,7 @@ const EXCLUSIONS: Array = [
 
 @export var terrain: NodePath
 @export var seed := 7
-@export var count := 70
+@export var count := 120
 
 var placed: Array[Transform3D] = []
 
