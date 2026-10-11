@@ -25,7 +25,7 @@ var vitality_radius := 0.0
 func _ready() -> void:
 	add_to_group("world")
 	RenderingServer.global_shader_parameter_set("vitality_radius", 0.0)
-	apply_vitality_global(1.0 if state.tower_stopped else 0.0)
+	set_recovered_visuals(1.0 if state.tower_stopped else 0.0)
 	apply_state()
 
 
@@ -50,16 +50,32 @@ func stop_tower() -> void:
 	if not state.stop_tower():
 		return
 	var tower := $Tower
-	tower.get_node("Vortex").emitting = false
 	tower.get_node("Burst").restart()
 	var tween := create_tween().set_parallel()
 	tween.tween_method(_set_vitality, 0.0, RECOVERY_RADIUS, RECOVERY_TIME).set_trans(Tween.TRANS_SINE)
-	var cloud_mat: StandardMaterial3D = (tower.get_node("Cloud") as MeshInstance3D).mesh.material
-	tween.tween_property(cloud_mat, "albedo_color:a", 0.0, RECOVERY_TIME * 0.5)
-	tween.tween_method(apply_vitality_global, 0.0, 1.0, RECOVERY_TIME).set_trans(Tween.TRANS_SINE)
+	tween.tween_method(set_recovered_visuals, 0.0, 1.0, RECOVERY_TIME).set_trans(Tween.TRANS_SINE)
 	for m in get_tree().get_nodes_in_group("enemy"):
 		if m.has_method("deactivate"):
 			m.deactivate()
+
+
+## 회복 연출 (0 = 탑 작동 중, 1 = 정지 후): 먹구름이 걷히고 소용돌이가 멈추고 하늘·안개가 갠다.
+## 스크린샷 도구도 이 함수로 회복 후 하늘을 만든다.
+func set_recovered_visuals(v: float) -> void:
+	var tower := get_node_or_null("Tower")
+	if tower:
+		var cloud := tower.get_node_or_null("Cloud") as MeshInstance3D
+		if cloud:
+			var mat := cloud.get_active_material(0) as ShaderMaterial
+			var a := clampf(1.0 - v * 2.0, 0.0, 1.0)   # 앞 절반 동안 걷힌다
+			if mat:
+				mat.set_shader_parameter("opacity", a)
+			cloud.visible = a > 0.001
+		var vortex := tower.get_node_or_null("Vortex") as GPUParticles3D
+		if vortex:
+			vortex.emitting = v < 0.05
+			vortex.visible = v < 0.5
+	apply_vitality_global(v)
 
 
 func _set_vitality(r: float) -> void:

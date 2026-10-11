@@ -3,6 +3,8 @@
 [ext_resource type="Script" path="res://scripts/nodes/tower_core.gd" id="1"]
 [ext_resource type="Shader" path="res://shaders/vitality.gdshader" id="2"]
 [ext_resource type="Shader" path="res://shaders/structure.gdshader" id="3"]
+[ext_resource type="Shader" path="res://shaders/tower_cloud.gdshader" id="4"]
+[ext_resource type="Shader" path="res://shaders/vortex_streak.gdshader" id="5"]
 [ext_resource type="Texture2D" path="res://assets/textures/terrain/rock_diff.jpg" id="6"]
 [ext_resource type="Texture2D" path="res://assets/textures/terrain/rock_nor.jpg" id="7"]
 [ext_resource type="Texture2D" path="res://assets/textures/terrain/rock_arm.jpg" id="8"]
@@ -53,16 +55,12 @@ size = Vector3(4, 15, 4)
 radius = 0.6
 height = 1.2
 
-[sub_resource type="StandardMaterial3D" id="DustMat"]
-transparency = 1
-shading_mode = 0
-billboard_mode = 3
-vertex_color_use_as_albedo = true
-albedo_color = Color(0.35, 0.36, 0.4, 0.7)
+[sub_resource type="ShaderMaterial" id="DustMat"]
+shader = ExtResource("5")
 
 [sub_resource type="QuadMesh" id="DustQuad"]
 material = SubResource("DustMat")
-size = Vector2(0.6, 0.6)
+size = Vector2(0.1, 2.2)
 
 [sub_resource type="ParticleProcessMaterial" id="VortexProc"]
 emission_shape = 6
@@ -103,17 +101,13 @@ gravity = Vector3(0, -6, 0)
 damping_min = 1.0
 damping_max = 2.0
 
-[sub_resource type="StandardMaterial3D" id="CloudMat"]
-transparency = 1
-shading_mode = 0
-albedo_color = Color(0.22, 0.23, 0.26, 0.65)
+[sub_resource type="ShaderMaterial" id="CloudMat"]
+render_priority = -1
+shader = ExtResource("4")
 
-[sub_resource type="CylinderMesh" id="CloudMesh"]
+[sub_resource type="PlaneMesh" id="CloudMesh"]
 material = SubResource("CloudMat")
-top_radius = 70.0
-bottom_radius = 55.0
-height = 4.0
-radial_segments = 24
+size = Vector2(340, 340)
 
 [node name="Tower" type="Node3D"]
 
@@ -166,7 +160,8 @@ mesh = SubResource("CoreMesh")
 surface_material_override/0 = SubResource("CoreMat")
 
 [node name="Vortex" type="GPUParticles3D" parent="."]
-amount = 600
+amount = 300
+transform_align = 3
 lifetime = 10.0
 preprocess = 10.0
 visibility_aabb = AABB(-130, -20, -130, 260, 120, 260)

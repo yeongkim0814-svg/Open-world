@@ -31,7 +31,9 @@ func _set_vitality(color: bool) -> void:
 	RenderingServer.global_shader_parameter_set("vitality_radius", 100000.0 if color else 0.0)
 	if ProjectSettings.has_setting("shader_globals/vitality_global"):
 		RenderingServer.global_shader_parameter_set("vitality_global", 1.0 if color else 0.0)
-	if s.has_method("apply_vitality_global"):
+	if s.has_method("set_recovered_visuals"):
+		s.set_recovered_visuals(1.0 if color else 0.0)
+	elif s.has_method("apply_vitality_global"):
 		s.apply_vitality_global(1.0 if color else 0.0)
 
 
