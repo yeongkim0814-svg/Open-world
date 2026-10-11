@@ -7,6 +7,8 @@ extends Water
 @export var bottom_y := -6.0       ## 분지 바닥(-4.24)보다 아래
 @export var move_speed := 1.0       ## m/s
 
+signal level_settled  ## 목표 수위에 닿았을 때 (풀 다시 깔기)
+
 var level: float
 var _target: float
 
@@ -44,6 +46,8 @@ func _physics_process(delta: float) -> void:
 	if not is_settled():
 		level = move_toward(level, _target, move_speed * delta)
 		_place_surface()
+		if is_settled():
+			level_settled.emit()
 
 
 func _place_surface() -> void:

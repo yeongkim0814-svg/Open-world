@@ -29,6 +29,8 @@ uniform float spec_grey = 0.12;
 // 원거리: 수평선 쪽 밝은 청록·잔잔한 노멀·높은 거칠기 (탑 꼭대기에서 반짝임이 거슬리지 않게)
 uniform vec3 horizon_color : source_color = vec3(0.30, 0.55, 0.66);
 uniform vec3 grey_horizon : source_color = vec3(0.45, 0.50, 0.54);
+uniform float global_from = 200.0;      // 회복 반경 밖 바다는 이 거리부터 vitality_global(하늘)을 따른다
+uniform float global_to = 240.0;
 uniform float far_start = 40.0;
 uniform float far_end = 400.0;
 uniform float far_rough = 0.45;
@@ -77,6 +79,8 @@ void vertex() {
 
 void fragment() {
 	float t = vitality_t(v_world, 10.0);
+	float d_c = distance(v_world.xz, vitality_center.xz);
+	t = max(t, vitality_global * smoothstep(global_from, global_to, d_c));
 
 	// 두 겹 노멀: 서로 다른 크기·방향으로 흐른다
 	float cam_d = length(v_world - CAMERA_POSITION_WORLD);

@@ -2,7 +2,7 @@ class_name Terrain
 extends StaticBody3D
 ## 높이 지도 PNG → 부드러운 지형 메시 + 충돌 (설계서 5.2, 03 그래픽 설계서 6장). 시작할 때 만든다.
 ## 재질 = shaders/terrain.gdshader (풀·흙·바위·모래 텍스처 섞기, 회색↔컬러 포함).
-## 메시 격자 cell (기본 1m ≈ 18만 삼각형), 충돌 격자 collision_cell (기본 2m, 등반 스윕으로 확인한 값).
+## 메시 격자 cell (기본 1m ≈ 18만 삼각형), 충돌 격자 collision_cell (기본 1m — 2m는 등반 스윕 4곳 실패).
 
 const TERRAIN_SHADER := preload("res://shaders/terrain.gdshader")
 const TEX_DIR := "res://assets/textures/terrain/"

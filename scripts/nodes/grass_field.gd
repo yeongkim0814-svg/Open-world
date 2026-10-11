@@ -118,6 +118,20 @@ func _refresh(cam_xz: Vector2) -> void:
 	_water = get_tree().get_nodes_in_group("water")
 
 
+## 수위가 바뀐 원(호수)과 겹치는 청크를 지우고 다시 만들 대기열에 넣는다 (드러난 호수 바닥에 풀).
+func invalidate_disc(center: Vector2, r: float) -> void:
+	var reach := r + chunk_size * 0.71
+	var half := chunk_size * 0.5
+	for k in _chunks.keys():
+		var ctr := Vector2(k.x * chunk_size + half, k.y * chunk_size + half)
+		if ctr.distance_to(center) <= reach:
+			(_chunks[k] as Node).queue_free()
+			_chunks.erase(k)
+			if not _pending.has(k):
+				_pending.append(k)
+	_water = get_tree().get_nodes_in_group("water") if is_inside_tree() else _water
+
+
 func _water_level(x: float, z: float) -> float:
 	var level := -INF
 	for w in _water:

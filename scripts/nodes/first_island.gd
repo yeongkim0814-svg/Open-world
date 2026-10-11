@@ -13,8 +13,7 @@ const FOG_CLEAR := {
 	"fog_light_color": Color(0.62, 0.72, 0.86), "fog_density": 0.0005, "fog_height_density": 0.03,
 	"volumetric_fog_density": 0.001, "volumetric_fog_albedo": Color(0.9, 0.94, 1.0),
 }
-const SUN_ENERGY_GREY := 1.6
-const SUN_ENERGY_CLEAR := 1.6
+const SUN_ENERGY := 1.6  ## 회복 전후 같음 (차이는 하늘·안개가 만든다)
 
 var state := WorldState.new()
 var vitality_radius := 0.0
@@ -24,7 +23,11 @@ var vitality_radius := 0.0
 
 func _ready() -> void:
 	add_to_group("world")
-	RenderingServer.global_shader_parameter_set("vitality_radius", 0.0)
+	_set_vitality(RECOVERY_RADIUS if state.tower_stopped else 0.0)
+	var grass := get_node_or_null("GrassField")
+	if grass:
+		lake.level_settled.connect(func():
+			grass.invalidate_disc(Vector2(lake.global_position.x, lake.global_position.z), lake.radius))
 	set_recovered_visuals(1.0 if state.tower_stopped else 0.0)
 	apply_state()
 
@@ -91,7 +94,7 @@ func apply_vitality_global(v: float) -> void:
 		env.set(k, lerp(FOG_GREY[k], FOG_CLEAR[k], v))
 	var sun := get_node_or_null("Sun") as DirectionalLight3D
 	if sun:
-		sun.light_energy = lerpf(SUN_ENERGY_GREY, SUN_ENERGY_CLEAR, v)
+		sun.light_energy = SUN_ENERGY
 
 
 func status_text() -> String:

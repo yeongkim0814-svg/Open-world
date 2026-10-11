@@ -206,6 +206,7 @@ light_energy = 1.6
 light_angular_distance = 0.5
 shadow_enabled = true
 directional_shadow_max_distance = 80.0
+directional_shadow_mode = 1
 
 [node name="Backdrop" parent="." instance=ExtResource("backdrop")]
 
