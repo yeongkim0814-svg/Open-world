@@ -47,3 +47,9 @@ func test_trunk():
 			var t := _cat.trunk(id)
 			assert_true(t.x > 0.1, "%s 줄기 반경 %.3f" % [id, t.x])
 			assert_true(t.y > 0.8, "%s 줄기 높이 %.3f" % [id, t.y])
+
+
+func test_tree_leaves_use_instance_tint():
+	var m := _cat.mesh("tree_round_0")
+	var leaves := m.surface_get_material(1) as ShaderMaterial
+	assert_true(leaves.get_shader_parameter("instance_tint") == true, "나무 잎은 개체별 색조를 써야 함")

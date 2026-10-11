@@ -22,7 +22,7 @@ func _init() -> void:
 	var grass_mat := _foliage("grass", "grass_tip", true, 40.0, 55.0)
 	var shrub_mat := _foliage("foliage", "grass_tip", true, 120.0, 160.0)
 	shrub_mat.set_shader_parameter("density_depleted", 1.0)
-	var leaves := _foliage("foliage", "grass_tip", false, 100000.0, 100001.0)
+	var leaves := _foliage("foliage", "grass_tip", true, 100000.0, 100001.0)
 	leaves.set_shader_parameter("density_depleted", 1.0)   # 나무는 회복 전에도 서 있다 (색·바람만 변화)
 	leaves.set_shader_parameter("height_depleted", 1.0)
 	leaves.set_shader_parameter("wind_strength", 0.02)

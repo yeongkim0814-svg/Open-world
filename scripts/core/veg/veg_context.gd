@@ -66,6 +66,15 @@ func _add_marker(m: Dictionary) -> void:
 		_marker_ex.append({"x": x, "z": z, "r2": r2 * r2, "min_layer": Layer.GRASS})
 
 
+## 물 판정 교체·조회 (VegetationField 가 블록마다 최신 물 노드로 바꿔 끼운다)
+func set_water(water_level: Callable) -> void:
+	_water = water_level
+
+
+func get_water() -> Callable:
+	return _water
+
+
 func zone_at(x: float, z: float) -> int:
 	return _read(_zones, x, z)
 
