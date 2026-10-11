@@ -1,16 +1,20 @@
 class_name Island1km
 extends Node3D
-## 첫 섬 1km 시험 장면 (설계서 2026-10-12 8장): 구운 색칠 지도 → 구역 LOD 지형·바다·저수호 수면·표식 기둥.
+## 첫 지역 시험 장면 (설계서 2026-10-12 8장·11장): 구운 색칠 지도 → 구역 LOD 지형·바다·저수호 수면·표식 기둥.
+## 지도 크기·높이 범위는 baked/meta.json, 저수호 수위는 markers.json 의 crest(둑 꼭대기) 기준.
 ## 퀘스트 오브젝트·식생·구조물은 아직 없음 (B·C). 디버그 패널 = UI/MapPanel.
 
 const BAKED := "res://maps/first_island/baked/"
 const TERRAIN := preload("res://shaders/style_terrain.gdshader")
 const WATER := preload("res://shaders/style_water.gdshader")
-const LAKE_LEVEL := 14.6
 const LAKE_R := 48.0
+const LEVEL_BELOW_CREST := 1.4   ## 첫 수위 = 둑 꼭대기 − 1.4m (수문 1개당 −3.9m는 C)
+const LAKE_DEPTH := 22.0
 const ZONE_KEYS := ["grass", "zone_broadleaf", "zone_conifer", "zone_wetland", "zone_highland", "sand", "zone_wasteland"]
 
 var field: HeightField
+var world := 1024.0
+var map_px := 1024
 var markers: Array = []
 var model := Recovery.new()
 var _terrain: ChunkedTerrain
@@ -26,6 +30,7 @@ var _stat_t := 0.0
 
 func _ready() -> void:
 	markers = _read_markers()
+	_read_meta()
 	_build_environment()
 	_build_terrain()
 	field = _terrain.field
@@ -50,7 +55,7 @@ func _process(dt: float) -> void:
 		_placed = _terrain.collision_ready()
 	var r := _here()
 	_env.fog_light_color = StylePalette.color("sky_horizon", r)
-	_env.fog_density = lerpf(0.0011, 0.0006, r)
+	_env.fog_density = lerpf(0.0011, 0.0006, r) * clampf(1024.0 / world, 0.35, 1.0)   # 넓은 지도일수록 옅게 (2km: 약 절반)
 	_sun.light_color = Color(0.86, 0.89, 0.93).lerp(Color(1.0, 0.95, 0.85), r)
 	_sun.light_energy = lerpf(0.9, 1.15, r)
 	_stat_t -= dt
@@ -84,6 +89,16 @@ func _here() -> float:
 	if cam == null:
 		return 0.0
 	return _map.displayed_at(Vector2(cam.global_position.x, cam.global_position.z))
+
+
+func _read_meta() -> void:
+	var f := FileAccess.open(BAKED + "meta.json", FileAccess.READ)
+	if f == null:
+		return
+	var d = JSON.parse_string(f.get_as_text())
+	if d is Dictionary:
+		world = float(d.get("world", world))
+		map_px = int(d.get("size", map_px))
 
 
 func _read_markers() -> Array:
@@ -143,7 +158,8 @@ func _build_terrain() -> void:
 	mat.set_shader_parameter("use_zone_map", true)
 	mat.set_shader_parameter("zone_map", _tex("zones.png"))
 	mat.set_shader_parameter("path_map", _tex("paths.png"))
-	mat.set_shader_parameter("map_rect", Vector4(-512, -512, 1024, 1024))
+	mat.set_shader_parameter("map_rect", Vector4(-world * 0.5, -world * 0.5, world, world))
+	mat.set_shader_parameter("map_px", float(map_px))
 	mat.set_shader_parameter("zone_depleted", zd)
 	mat.set_shader_parameter("zone_restored", zr)
 	mat.set_shader_parameter("path_depleted", PackedColorArray([StylePalette.DEPLETED.path_dirt, StylePalette.DEPLETED.path_paved]))
@@ -157,10 +173,10 @@ func _build_terrain() -> void:
 
 
 func _build_recovery() -> void:
-	model.add_region(&"island", Vector2.ZERO, 600.0)
+	model.add_region(&"island", Vector2.ZERO, world * 0.75)
 	_map = RecoveryMap.new()
 	_map.name = "RecoveryMap"
-	_map.world_rect = Rect2(-512, -512, 1024, 1024)
+	_map.world_rect = Rect2(-world * 0.5, -world * 0.5, world, world)
 	_map.model = model
 	add_child(_map)
 	_map.refresh()
@@ -200,13 +216,13 @@ func _water_grid(center: Vector2, half: float, cell: float, level: float, depth_
 func _build_water() -> void:
 	var sea := MeshInstance3D.new()
 	sea.name = "Sea"
-	sea.mesh = _water_grid(Vector2.ZERO, 3000.0, 32.0, 0.0, 3.0)
+	sea.mesh = _water_grid(Vector2.ZERO, world * 1.5, 64.0, 0.0, 3.0)
 	sea.material_override = _water_mat(true)
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(sea)
 	var sea_w := Water.new()   # 바다 수영 판정 (수면 0m)
 	sea_w.name = "SeaWater"
-	sea_w.size = Vector3(1100.0, 40.0, 1100.0)
+	sea_w.size = Vector3(world + 100.0, 40.0, world + 100.0)
 	sea_w.position = Vector3(0.0, -20.0, 0.0)
 	add_child(sea_w)
 	_build_world_edge()
@@ -214,19 +230,22 @@ func _build_water() -> void:
 	if lk.is_empty():
 		return
 	var c := Vector2(lk.x, lk.z)
+	var crest := float(lk.get("crest", 16.0))
+	var level := crest - LEVEL_BELOW_CREST
+	var floor_y := crest - LAKE_DEPTH
 	var lake := MeshInstance3D.new()
 	lake.name = "LakeSurface"
-	lake.mesh = _water_grid(c, LAKE_R + 2.0, 2.0, LAKE_LEVEL, 6.0, LAKE_R + 2.0)
+	lake.mesh = _water_grid(c, LAKE_R + 2.0, 2.0, level, 6.0, LAKE_R + 2.0)
 	lake.material_override = _water_mat(false)
 	lake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(lake)
 	var w := Water.new()   # 수영 판정 (그룹 "water")
-	w.size = Vector3(LAKE_R * 2.0, LAKE_LEVEL + 6.0, LAKE_R * 2.0)
-	w.position = Vector3(c.x, (LAKE_LEVEL - 6.0) * 0.5, c.y)
+	w.size = Vector3(LAKE_R * 2.0, level - floor_y, LAKE_R * 2.0)
+	w.position = Vector3(c.x, (level + floor_y) * 0.5, c.y)
 	add_child(w)
 
 
-## 지도 가장자리(±500m) 보이지 않는 벽 — 밖에는 지형·충돌이 없다.
+## 지도 가장자리 보이지 않는 벽 — 밖에는 지형·충돌이 없다 (서·북은 나중에 세계가 이어지면 없앤다).
 func _build_world_edge() -> void:
 	var body := StaticBody3D.new()
 	body.name = "WorldEdge"
@@ -234,10 +253,11 @@ func _build_world_edge() -> void:
 		var col := CollisionShape3D.new()
 		var box := BoxShape3D.new()
 		var along := i < 2
-		box.size = Vector3(1040.0, 400.0, 20.0) if along else Vector3(20.0, 400.0, 1040.0)
+		box.size = Vector3(world + 20.0, 600.0, 20.0) if along else Vector3(20.0, 600.0, world + 20.0)
 		col.shape = box
 		var sgn := -1.0 if i % 2 == 0 else 1.0
-		col.position = Vector3(0.0, 0.0, sgn * 510.0) if along else Vector3(sgn * 510.0, 0.0, 0.0)
+		var e := world * 0.5 - 2.0
+		col.position = Vector3(0.0, 100.0, sgn * e) if along else Vector3(sgn * e, 100.0, 0.0)
 		body.add_child(col)
 	add_child(body)
 

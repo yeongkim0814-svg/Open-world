@@ -23,6 +23,8 @@ var _await_stick_release := false   ## 재시작 직후: 스틱을 한 번 놓�
 @onready var _facing: Node3D = $Facing
 @onready var _probe: Node3D = $Probe          ## 벽 감지 레이 묶음: 바라보는 방향이 아니라 이동 방향을 향한다
 @onready var _wall_ray: RayCast3D = $Probe/WallRay
+var _side_rays: Array[RayCast3D] = []
+const SIDE_RAY_OFFSET := 0.35
 @onready var _head_ray: RayCast3D = $Probe/HeadRay
 @onready var _camera: OrbitCamera = $OrbitCamera
 @onready var combat: PlayerCombat = $PlayerCombat
@@ -49,6 +51,7 @@ func _ready() -> void:
 	add_to_group("player")
 	combat.setup(self)
 	combat.died.connect(_on_died)
+	_add_side_wall_rays()
 	if touch_controls:
 		touch_controls.intent_updated.connect(set_intent)
 
@@ -97,11 +100,30 @@ func _physics_process(delta: float) -> void:
 	_update_camera(delta)
 
 
+## 가슴 레이 양옆(±SIDE_RAY_OFFSET)에 같은 레이를 하나씩 더 둔다. 높이 지도 충돌은 1m 칸을 대각선으로 나눠서,
+## 곡선 절벽은 계단 모양이 되고 한 레이의 법선은 실제 벽보다 최대 45° 돌아간다 → 세 레이 평균으로 계단을 지운다.
+func _add_side_wall_rays() -> void:
+	for side in [-1.0, 1.0]:
+		var r := _wall_ray.duplicate() as RayCast3D
+		r.position = _wall_ray.position + Vector3(side * SIDE_RAY_OFFSET, 0.0, 0.0)
+		_wall_ray.get_parent().add_child(r)
+		_side_rays.append(r)
+
+
+## 맞은 가슴 레이들의 법선 평균 (하나도 안 맞으면 ZERO).
+func _wall_ray_normal() -> Vector3:
+	var sum := Vector3.ZERO
+	for r: RayCast3D in [_wall_ray] + _side_rays:
+		if r.is_colliding():
+			sum += r.get_collision_normal()
+	return sum.normalized() if sum != Vector3.ZERO else Vector3.ZERO
+
+
 func _sense() -> Dictionary:
 	var climbing := locomotion.state == Locomotion.State.CLIMBING
 	var wall_normal := Vector3.ZERO
 	if _wall_ray.is_colliding():
-		var n := _wall_ray.get_collision_normal()
+		var n := _wall_ray_normal()
 		if Locomotion.is_climbable(n, climbing):
 			wall_normal = n
 	elif is_on_wall() and Locomotion.is_climbable(get_wall_normal(), climbing):

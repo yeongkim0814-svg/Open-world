@@ -19,11 +19,11 @@ const SCENES := {
 		"ruin": [Vector3(-12, 2.5, 10), Vector3(-24, 2.0, -4)],
 	},
 	"island_1km": {
-		"start": [Vector3(14, 2.5, 352), Vector3(0, 12, 200)],
-		"lake": [Vector3(45, 14, 10), Vector3(0, 0, -40)],
-		"north": [Vector3(-20, 3, -170), Vector3(-10, 20, -320)],
-		"west": [Vector3(-160, 4, 40), Vector3(-270, 10, 0)],
-		"air": [Vector3(330, 260, 470), Vector3(0, 0, -40)],
+		"start": [Vector3(690, 2.5, 705), Vector3(300, 40, 300)],
+		"village": [Vector3(520, 6, 790), Vector3(430, 5, 650)],
+		"lake": [Vector3(100, 18, -110), Vector3(26, -10, -173)],
+		"summit": [Vector3(-60, 3, 260), Vector3(20, 60, -120)],
+		"air": [Vector3(1000, 520, 1150), Vector3(0, 0, -100)],
 	},
 }
 const SETTLE_FRAMES := 45
