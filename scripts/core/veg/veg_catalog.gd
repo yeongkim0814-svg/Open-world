@@ -2,7 +2,8 @@ class_name VegCatalog
 extends RefCounted
 ## 식생·바위 메시 카탈로그: VegPlacement.mesh_ids() 의 모든 id 를 한 번 만들어 재질을 입힌다.
 ## 풀 변형 _0/_1 = GrassGen.build(kind, variant) (variant 마다 다른 시드 = 다른 잎 배치).
-## 덤불 shrub_0..3 = TreeGen SHRUB 시드 4개, 나무 *_0..5 = 시드 6개 (LOD0 + LOD1).
+## 덤불 shrub_0..3 = TreeGen SHRUB 시드 4개, 나무 *_0..2 = 시드 3개 (LOD0 + LOD1).
+## 나무·덤불은 줄기·잎 두 면을 한 면으로 합친다 (UV.x = 1 줄기) — MultiMesh 하나 = 그리기 호출 1개.
 
 const LIT := preload("res://shaders/style_lit.gdshader")
 const FOLIAGE := preload("res://shaders/style_foliage.gdshader")
@@ -22,11 +23,12 @@ func _init() -> void:
 	var grass_mat := _foliage("grass", "grass_tip", true, 40.0, 55.0)
 	var shrub_mat := _foliage("foliage", "grass_tip", true, 120.0, 160.0)
 	shrub_mat.set_shader_parameter("density_depleted", 1.0)
+	_trunk_color(shrub_mat)
 	var leaves := _foliage("foliage", "grass_tip", true, 100000.0, 100001.0)
 	leaves.set_shader_parameter("density_depleted", 1.0)   # 나무는 회복 전에도 서 있다 (색·바람만 변화)
 	leaves.set_shader_parameter("height_depleted", 1.0)
 	leaves.set_shader_parameter("wind_strength", 0.02)
-	var trunk_mat := _lit("ground", 0.55)
+	_trunk_color(leaves)
 	var rock_mat := _lit("rock")
 	for id in VegPlacement.mesh_ids():
 		var parts := id.split("_")
@@ -38,16 +40,16 @@ func _init() -> void:
 				m.surface_set_material(0, grass_mat)
 				_meshes[id] = m
 			"shrub":
-				var m := _tree(SHRUB_SEED_BASE + variant * 7, TreeGen.Kind.SHRUB, 0, trunk_mat, shrub_mat)
+				var m := _tree(SHRUB_SEED_BASE + variant * 7, TreeGen.Kind.SHRUB, 0, shrub_mat)
 				_meshes[id] = m
 			"tree":
 				var kind: int = [TreeGen.Kind.ROUND, TreeGen.Kind.COLUMN, TreeGen.Kind.SPREAD][VegPlacement.TREE_KINDS.find(parts[1])]
 				var sd := TREE_SEED_BASE + variant * 7
-				var m := _tree(sd, kind, 0, trunk_mat, leaves)
-				_meshes[id] = m
-				_tree_lod1[id] = _tree(sd, kind, 1, trunk_mat, leaves)
-				# 줄기 = 면 0 의 AABB (반경 = 가로 반폭, 높이 = 세로)
-				_trunks[id] = _trunk_dims(m)
+				var src := TreeGen.build(sd, kind, 0)
+				# 줄기 = 면 0 의 AABB (반경 = 가로 반폭, 높이 = 세로) — 합치기 전에 잰다
+				_trunks[id] = _trunk_dims(src)
+				_meshes[id] = _merged(src, leaves)
+				_tree_lod1[id] = _tree(sd, kind, 1, leaves)
 			"rock":
 				var m := RockGen.build(ROCK_SEED_BASE + variant, VegPlacement.ROCK_KINDS.find(parts[1]))
 				m.surface_set_material(0, rock_mat)
@@ -77,11 +79,44 @@ func trunk(id: String) -> Vector2:
 
 # ---------- 내부 ----------
 
-func _tree(sd: int, kind: int, lod: int, trunk_mat: Material, leaf_mat: Material) -> ArrayMesh:
-	var m := TreeGen.build(sd, kind, lod)
-	m.surface_set_material(0, trunk_mat)
-	m.surface_set_material(1, leaf_mat)
+func _tree(sd: int, kind: int, lod: int, mat: Material) -> ArrayMesh:
+	return _merged(TreeGen.build(sd, kind, lod), mat)
+
+
+## TreeGen 두 면(0 줄기, 1 잎)을 한 면으로: 정점·법선·색을 잇고 UV.x = 1 로 줄기 정점 표시 (색인 없는 메시)
+static func _merged(src: ArrayMesh, mat: Material) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var cols := PackedColorArray()
+	var uvs := PackedVector2Array()
+	for si in src.get_surface_count():
+		var a := src.surface_get_arrays(si)
+		var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		verts.append_array(v)
+		norms.append_array(a[Mesh.ARRAY_NORMAL])
+		cols.append_array(a[Mesh.ARRAY_COLOR])
+		var flag := Vector2(1.0 if si == 0 else 0.0, 0.0)
+		var start := uvs.size()
+		uvs.resize(start + v.size())
+		for i in v.size():
+			uvs[start + i] = flag
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_NORMAL] = norms
+	arr[Mesh.ARRAY_COLOR] = cols
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	m.surface_set_material(0, mat)
 	return m
+
+
+## 줄기색 = 땅색 × 0.55 (예전 style_lit 줄기 재질과 같은 값)
+func _trunk_color(m: ShaderMaterial) -> void:
+	m.set_shader_parameter("has_trunk", true)
+	m.set_shader_parameter("trunk_depleted", StylePalette.DEPLETED["ground"] * 0.55)
+	m.set_shader_parameter("trunk_restored", StylePalette.RESTORED["ground"] * 0.55)
 
 
 func _trunk_dims(m: ArrayMesh) -> Vector2:

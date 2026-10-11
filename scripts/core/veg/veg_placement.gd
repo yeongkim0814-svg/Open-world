@@ -16,7 +16,7 @@ const ROCK_KINDS := ["round", "slab", "pillar"]
 const TREE_KINDS := ["round", "column", "spread"]
 const GRASS_VARIANTS := 2
 const SHRUB_VARIANTS := 4
-const TREE_VARIANTS := 6
+const TREE_VARIANTS := 3          # 그리기 호출 예산 (설계서 1장): 6 → 3
 const ROCK_VARIANTS := 4
 
 # 풀 (설계서 4장)
@@ -70,17 +70,63 @@ static func noise(kind: String, world_seed: int) -> FastNoiseLite:
 
 
 static func block(ctx: VegContext, layer: int, key: Vector2i, world_seed := 1337) -> Array:
+	var job := begin(ctx, layer, key, world_seed)
+	run(job, 1 << 30)
+	return job.out
+
+
+## 블록 배치 작업: 흔든 격자를 줄 단위로 나눠 계산한다 (VegetationField 가 프레임 예산 안에서 몇 줄씩).
+## 같은 rng 를 이어 쓰므로 나눠 계산해도 한 번에 계산한 것과 같다. 줄을 다 돌면 꼬리(초원 나무무리·노두)를 한 번 더.
+class Job:
+	var ctx: VegContext
+	var layer: int
+	var ws: int
 	var rng := RandomNumberGenerator.new()
-	rng.seed = hash([world_seed, layer, key.x, key.y])
-	var size: float = BLOCK[layer]
-	var origin := Vector2(key.x * size, key.y * size)
+	var o: Vector2
+	var size: float
+	var n := 0                 ## 격자 줄 수 (= 한 줄 칸 수)
+	var cell := 0.0
+	var row := 0               ## 다음에 계산할 줄 (n = 꼬리)
+	var done := false
 	var out: Array = []
-	match layer:
-		VegContext.Layer.GRASS: _grass(ctx, rng, origin, size, world_seed, out)
-		VegContext.Layer.SHRUB: _shrub(ctx, rng, origin, size, world_seed, out)
-		VegContext.Layer.TREE: _tree(ctx, rng, origin, size, world_seed, out)
-		VegContext.Layer.ROCK: _rock(ctx, rng, origin, size, out)
-	return out
+	var placed: Array[Vector2] = []   ## 나무 최소 간격용
+	var cliff: Array = []             ## 바위 절벽 판정 캐시
+
+
+static func begin(ctx: VegContext, layer: int, key: Vector2i, world_seed := 1337) -> Job:
+	var job := Job.new()
+	job.ctx = ctx
+	job.layer = layer
+	job.ws = world_seed
+	job.rng.seed = hash([world_seed, layer, key.x, key.y])
+	job.size = BLOCK[layer]
+	job.o = Vector2(key.x * job.size, key.y * job.size)
+	var dens: float = {VegContext.Layer.GRASS: GRASS_MAX, VegContext.Layer.SHRUB: 1.0 / 150.0,
+			VegContext.Layer.TREE: 1.0 / 200.0, VegContext.Layer.ROCK: 1.0 / 60.0}[layer]
+	var g := _grid(job.size, dens)
+	job.n = int(g.x)
+	job.cell = g.y
+	return job
+
+
+## 최대 max_rows 줄 계산 (꼬리도 한 줄로 센다). 끝나면 true.
+static func run(job: Job, max_rows: int) -> bool:
+	var left := max_rows
+	while not job.done and left > 0:
+		if job.row < job.n:
+			match job.layer:
+				VegContext.Layer.GRASS: _grass_row(job, job.row)
+				VegContext.Layer.SHRUB: _shrub_row(job, job.row)
+				VegContext.Layer.TREE: _tree_row(job, job.row)
+				VegContext.Layer.ROCK: _rock_row(job, job.row)
+			job.row += 1
+		else:
+			match job.layer:
+				VegContext.Layer.TREE: _tree_tail(job)
+				VegContext.Layer.ROCK: _rock_tail(job)
+			job.done = true
+		left -= 1
+	return job.done
 
 
 # ---------- 공통 ----------
@@ -122,32 +168,31 @@ static func _pick(rng: RandomNumberGenerator, weights: Array) -> int:
 
 # ---------- 풀 ----------
 
-static func _grass(ctx: VegContext, rng: RandomNumberGenerator, o: Vector2, size: float, ws: int, out: Array) -> void:
-	var g := _grid(size, GRASS_MAX)
-	var n := int(g.x); var cell := g.y
+static func _grass_row(job: Job, j: int) -> void:
+	var ctx := job.ctx; var rng := job.rng; var o := job.o; var out := job.out
+	var n := job.n; var cell := job.cell
 	var area := cell * cell
-	var clump := noise("clump_grass", ws)
-	var species := noise("species", ws)
-	for j in n:
-		for i in n:
-			var x := o.x + (i + rng.randf()) * cell
-			var z := o.y + (j + rng.randf()) * cell
-			var u := rng.randf()
-			var c := clump.get_noise_2d(x, z)
-			if c < GRASS_BARE_BELOW:
-				continue
-			var t := clampf((c - GRASS_BARE_BELOW) / 0.8, 0.0, 1.0)
-			var zone := ctx.zone_at(x, z)
-			var d: float = (0.4 + 1.2 * t) if zone == 0 else (0.1 + 0.5 * t)
-			if u > d * area:
-				continue
-			var nrm := ctx.field.normal_at(x, z)
-			if nrm.y < GRASS_MIN_NY:
-				continue
-			if ctx.excluded(VegContext.Layer.GRASS, x, z):
-				continue
-			var sp := species.get_noise_2d(x, z)   # -1..1
-			out.append(_grass_item(ctx, rng, x, z, nrm, sp, zone, 1.0))
+	var clump := noise("clump_grass", job.ws)
+	var species := noise("species", job.ws)
+	for i in n:
+		var x := o.x + (i + rng.randf()) * cell
+		var z := o.y + (j + rng.randf()) * cell
+		var u := rng.randf()
+		var c := clump.get_noise_2d(x, z)
+		if c < GRASS_BARE_BELOW:
+			continue
+		var t := clampf((c - GRASS_BARE_BELOW) / 0.8, 0.0, 1.0)
+		var zone := ctx.zone_at(x, z)
+		var d: float = (0.4 + 1.2 * t) if zone == 0 else (0.1 + 0.5 * t)
+		if u > d * area:
+			continue
+		var nrm := ctx.field.normal_at(x, z)
+		if nrm.y < GRASS_MIN_NY:
+			continue
+		if ctx.excluded(VegContext.Layer.GRASS, x, z):
+			continue
+		var sp := species.get_noise_2d(x, z)   # -1..1
+		out.append(_grass_item(ctx, rng, x, z, nrm, sp, zone, 1.0))
 
 
 ## 풀 한 포기. sp = species 노이즈, scale_mul = 꽃무리 등 크기 보정
@@ -169,38 +214,37 @@ static func _grass_item(ctx: VegContext, rng: RandomNumberGenerator, x: float, z
 
 # ---------- 덤불 ----------
 
-static func _shrub(ctx: VegContext, rng: RandomNumberGenerator, o: Vector2, size: float, ws: int, out: Array) -> void:
-	var g := _grid(size, 1.0 / 150.0)
-	var n := int(g.x); var cell := g.y
+static func _shrub_row(job: Job, j: int) -> void:
+	var ctx := job.ctx; var rng := job.rng; var o := job.o; var out := job.out
+	var n := job.n; var cell := job.cell
 	var area := cell * cell
-	var species := noise("species", ws)
-	for j in n:
-		for i in n:
-			var x := o.x + (i + rng.randf()) * cell
-			var z := o.y + (j + rng.randf()) * cell
-			var u := rng.randf()
-			var kind_roll := rng.randf()
-			var zone := ctx.zone_at(x, z)
-			# 초원 기본 1/1500 만으로 끝나면 싼 길, 아니면 가장자리·길섶 확인 (그 밖 숲 안쪽은 없음)
-			var base_ok := zone == 0 and u <= area / 1500.0
-			if not base_ok:
-				if u > area / 150.0:
-					continue
-				if not (ctx.edge_dist_zone(x, z, 20.0) < 20.0 or ctx.path_near(x, z, 6.0) > 0):
-					continue
-			var nrm := ctx.field.normal_at(x, z)
-			if nrm.y < 0.6:
+	var species := noise("species", job.ws)
+	for i in n:
+		var x := o.x + (i + rng.randf()) * cell
+		var z := o.y + (j + rng.randf()) * cell
+		var u := rng.randf()
+		var kind_roll := rng.randf()
+		var zone := ctx.zone_at(x, z)
+		# 초원 기본 1/1500 만으로 끝나면 싼 길, 아니면 가장자리·길섶 확인 (그 밖 숲 안쪽은 없음)
+		var base_ok := zone == 0 and u <= area / 1500.0
+		if not base_ok:
+			if u > area / 150.0:
 				continue
-			if ctx.excluded(VegContext.Layer.SHRUB, x, z):
+			if not (ctx.edge_dist_zone(x, z, 20.0) < 20.0 or ctx.path_near(x, z, 6.0) > 0):
 				continue
-			var sp := species.get_noise_2d(x, z)
-			if kind_roll < 0.3:
-				_flower_patch(ctx, rng, x, z, sp, zone, out)
-			else:
-				var sz := rng.randf_range(0.7, 1.4)
-				var basis := _tilted_basis(nrm, rng, deg_to_rad(6.0), 0.0) * Basis.from_scale(Vector3.ONE * sz)
-				var custom := Color(0.0, rng.randf(), sp * 0.5 + 0.5, 0.0)
-				out.append(_item("shrub_%d" % (rng.randi() % 4), Transform3D(basis, Vector3(x, ctx.ground_y(x, z), z)), custom, sz))
+		var nrm := ctx.field.normal_at(x, z)
+		if nrm.y < 0.6:
+			continue
+		if ctx.excluded(VegContext.Layer.SHRUB, x, z):
+			continue
+		var sp := species.get_noise_2d(x, z)
+		if kind_roll < 0.3:
+			_flower_patch(ctx, rng, x, z, sp, zone, out)
+		else:
+			var sz := rng.randf_range(0.7, 1.4)
+			var basis := _tilted_basis(nrm, rng, deg_to_rad(6.0), 0.0) * Basis.from_scale(Vector3.ONE * sz)
+			var custom := Color(0.0, rng.randf(), sp * 0.5 + 0.5, 0.0)
+			out.append(_item("shrub_%d" % (rng.randi() % 4), Transform3D(basis, Vector3(x, ctx.ground_y(x, z), z)), custom, sz))
 
 
 ## 꽃무리: 풀 꽃 id 를 3~6개 묶어서 (반경 1.5 m)
@@ -219,28 +263,31 @@ static func _flower_patch(ctx: VegContext, rng: RandomNumberGenerator, cx: float
 
 # ---------- 나무 ----------
 
-static func _tree(ctx: VegContext, rng: RandomNumberGenerator, o: Vector2, size: float, ws: int, out: Array) -> void:
-	var clump := noise("clump_tree", ws)
-	var species := noise("species", ws)
-	var placed: Array[Vector2] = []
+static func _tree_row(job: Job, j: int) -> void:
+	var ctx := job.ctx; var rng := job.rng; var o := job.o
+	var clump := noise("clump_tree", job.ws)
+	var species := noise("species", job.ws)
 	# 활엽수림: 1/200 m², 무리 노이즈 상위 65 % 안
-	var g := _grid(size, 1.0 / 200.0)
-	var n := int(g.x); var cell := g.y
+	var n := job.n; var cell := job.cell
 	var p_cell := cell * cell / 200.0
-	for j in n:
-		for i in n:
-			var x := o.x + (i + rng.randf()) * cell
-			var z := o.y + (j + rng.randf()) * cell
-			var u := rng.randf()
-			if u > p_cell:
-				continue
-			if clump.get_noise_2d(x, z) < TREE_CLUMP_BELOW:
-				continue
-			if ctx.zone_at(x, z) != 1:
-				continue
-			_try_tree(ctx, rng, x, z, species, placed, out)
-	# 초원: 3000 m² 당 1그루, 3~7그루 무리 (무리 중심 밀도 = 1/(3000 × 5))
-	var half := size * 0.5
+	for i in n:
+		var x := o.x + (i + rng.randf()) * cell
+		var z := o.y + (j + rng.randf()) * cell
+		var u := rng.randf()
+		if u > p_cell:
+			continue
+		if clump.get_noise_2d(x, z) < TREE_CLUMP_BELOW:
+			continue
+		if ctx.zone_at(x, z) != 1:
+			continue
+		_try_tree(ctx, rng, x, z, species, job.placed, job.out)
+
+
+## 초원: 3000 m² 당 1그루, 3~7그루 무리 (무리 중심 밀도 = 1/(3000 × 5))
+static func _tree_tail(job: Job) -> void:
+	var ctx := job.ctx; var rng := job.rng; var o := job.o
+	var species := noise("species", job.ws)
+	var half := job.size * 0.5
 	var area := half * half
 	for j in 2:
 		for i in 2:
@@ -255,7 +302,7 @@ static func _tree(ctx: VegContext, rng: RandomNumberGenerator, o: Vector2, size:
 			for k in cnt:
 				var a := rng.randf() * TAU
 				var r := sqrt(rng.randf()) * 7.0
-				_try_tree(ctx, rng, cx + cos(a) * r, cz + sin(a) * r, species, placed, out)
+				_try_tree(ctx, rng, cx + cos(a) * r, cz + sin(a) * r, species, job.placed, job.out)
 
 
 static func _try_tree(ctx: VegContext, rng: RandomNumberGenerator, x: float, z: float, species: FastNoiseLite, placed: Array[Vector2], out: Array) -> void:
@@ -280,38 +327,41 @@ static func _try_tree(ctx: VegContext, rng: RandomNumberGenerator, x: float, z: 
 
 const CLIFF_NODE := 8.0   # 절벽 아래 판정용 거친 격자 (m)
 
-static func _rock(ctx: VegContext, rng: RandomNumberGenerator, o: Vector2, size: float, out: Array) -> void:
-	var g := _grid(size, 1.0 / 60.0)
-	var n := int(g.x); var cell := g.y
+static func _rock_row(job: Job, j: int) -> void:
+	var ctx := job.ctx; var rng := job.rng; var o := job.o; var size := job.size; var out := job.out
+	var n := job.n; var cell := job.cell
 	var area := cell * cell
-	var cliff: Array = []
-	for j in n:
-		for i in n:
-			var x := o.x + (i + rng.randf()) * cell
-			var z := o.y + (j + rng.randf()) * cell
-			var u := rng.randf()
-			if u > area / 60.0:
-				continue
-			var nrm := ctx.field.normal_at(x, z)
-			var ny := nrm.y
-			if ny < ROCK_MAX_SLOPE_NY:
-				continue
-			var small_bias := false
-			if ny >= 0.5 and ny < 0.85:
-				if u > area / 150.0:
-					# 비탈 1/150 을 넘는 몫은 절벽 아래일 때만 (아래 판정)
-					if not _near_cliff(ctx, o, size, x, z, cliff):
-						continue
-					small_bias = true
-			else:
+	var cliff := job.cliff
+	for i in n:
+		var x := o.x + (i + rng.randf()) * cell
+		var z := o.y + (j + rng.randf()) * cell
+		var u := rng.randf()
+		if u > area / 60.0:
+			continue
+		var nrm := ctx.field.normal_at(x, z)
+		var ny := nrm.y
+		if ny < ROCK_MAX_SLOPE_NY:
+			continue
+		var small_bias := false
+		if ny >= 0.5 and ny < 0.85:
+			if u > area / 150.0:
+				# 비탈 1/150 을 넘는 몫은 절벽 아래일 때만 (아래 판정)
 				if not _near_cliff(ctx, o, size, x, z, cliff):
 					continue
 				small_bias = true
-			if ctx.excluded(VegContext.Layer.ROCK, x, z):
+		else:
+			if not _near_cliff(ctx, o, size, x, z, cliff):
 				continue
-			_rock_item(ctx, rng, x, z, nrm, small_bias, out)
-	# 평지 노두: 4000 m² 당 1개, 2~5개 무리 (중심 밀도 1/(4000 × 3.5))
-	var half := size * 0.5
+			small_bias = true
+		if ctx.excluded(VegContext.Layer.ROCK, x, z):
+			continue
+		_rock_item(ctx, rng, x, z, nrm, small_bias, out)
+
+
+## 평지 노두: 4000 m² 당 1개, 2~5개 무리 (중심 밀도 1/(4000 × 3.5))
+static func _rock_tail(job: Job) -> void:
+	var ctx := job.ctx; var rng := job.rng; var o := job.o
+	var half := job.size * 0.5
 	for j in 2:
 		for i in 2:
 			var cx := o.x + (i + rng.randf()) * half
@@ -328,7 +378,7 @@ static func _rock(ctx: VegContext, rng: RandomNumberGenerator, o: Vector2, size:
 				var nrm := ctx.field.normal_at(x, z)
 				if nrm.y < ROCK_MAX_SLOPE_NY or ctx.excluded(VegContext.Layer.ROCK, x, z):
 					continue
-				_rock_item(ctx, rng, x, z, nrm, false, out)
+				_rock_item(ctx, rng, x, z, nrm, false, job.out)
 
 
 ## 10 m 안에 normal.y < 0.5 인 면이 있나 (거친 노드 격자 지연 계산, 3×3 노드 = 약 ±8 m)
@@ -364,7 +414,8 @@ static func _rock_item(ctx: VegContext, rng: RandomNumberGenerator, x: float, z:
 		sz = rng.randf_range(1.2, 2.5)
 	else:
 		sz = rng.randf_range(2.5, 5.0)
-	var kind: String = ROCK_KINDS[_pick(rng, [50.0, 30.0, 20.0])]
+	# 평지 노두(돌무더기 아님)에는 기둥 바위를 드물게 — 풀밭에 선 기둥은 세운 돌처럼 보인다
+	var kind: String = ROCK_KINDS[_pick(rng, [50.0, 30.0, 20.0] if small_bias or nrm.y < 0.85 else [60.0, 35.0, 5.0])]
 	var basis := _tilted_basis(nrm, rng, ROCK_TILT, deg_to_rad(8.0))
 	basis = basis * Basis.from_scale(Vector3(sz, sz * rng.randf_range(0.8, 1.2), sz))
 	var burial := sz * rng.randf_range(0.2, 0.4)

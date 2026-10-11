@@ -51,5 +51,20 @@ func test_trunk():
 
 func test_tree_leaves_use_instance_tint():
 	var m := _cat.mesh("tree_round_0")
-	var leaves := m.surface_get_material(1) as ShaderMaterial
+	var leaves := m.surface_get_material(0) as ShaderMaterial
 	assert_true(leaves.get_shader_parameter("instance_tint") == true, "나무 잎은 개체별 색조를 써야 함")
+
+
+## 나무·덤불은 줄기·잎 한 면 (그리기 호출 절반): UV.x = 1 인 정점 = 줄기
+func test_tree_single_surface_with_trunk_flag():
+	for id in ["tree_round_0", "tree_spread_2", "shrub_1"]:
+		for lod in [0, 1]:
+			var m := _cat.mesh(id, lod)
+			assert_eq(m.get_surface_count(), 1, "%s lod%d 면 수" % [id, lod])
+			var uv: PackedVector2Array = m.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV]
+			var trunk := 0
+			for u in uv:
+				if u.x > 0.5:
+					trunk += 1
+			assert_true(trunk > 0 and trunk < uv.size(), "%s lod%d 줄기 정점 %d / %d" % [id, lod, trunk, uv.size()])
+			assert_true((m.surface_get_material(0) as ShaderMaterial).get_shader_parameter("has_trunk") == true)

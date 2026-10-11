@@ -2,7 +2,7 @@ class_name Island1km
 extends Node3D
 ## 첫 지역 시험 장면 (설계서 2026-10-12 8장·11장): 구운 색칠 지도 → 구역 LOD 지형·바다·저수호 수면·표식 기둥.
 ## 지도 크기·높이 범위는 baked/meta.json, 저수호 수위는 markers.json 의 crest(둑 꼭대기) 기준.
-## 퀘스트 오브젝트·식생·구조물은 아직 없음 (B·C). 디버그 패널 = UI/MapPanel.
+## 식생·바위 = VegetationField (설계서 2026-10-13). 퀘스트 오브젝트·구조물은 아직 없음 (C). 디버그 패널 = UI/MapPanel.
 
 const BAKED := "res://maps/first_island/baked/"
 const TERRAIN := preload("res://shaders/style_terrain.gdshader")
@@ -17,6 +17,8 @@ var map_px := 1024
 var markers: Array = []
 var model := Recovery.new()
 var _terrain: ChunkedTerrain
+var veg: VegetationField
+static var _veg_catalog: VegCatalog   ## 메시 생성이 무거워 장면을 다시 열어도 재사용
 var _map: RecoveryMap
 var _env: Environment
 var _sun: DirectionalLight3D
@@ -35,6 +37,7 @@ func _ready() -> void:
 	field = _terrain.field
 	_build_recovery()
 	_build_water()
+	_build_vegetation()
 	_build_marker_poles()
 	_build_panel()
 	_player = get_node_or_null("Player") as Node3D
@@ -63,16 +66,18 @@ func _process(dt: float) -> void:
 		var st := _terrain.stats()
 		var cam := get_viewport().get_camera_3d()
 		var p := cam.global_position if cam else Vector3.ZERO
-		_stats.text = "FPS %d · 그리기 %d · 삼각형 %dk\n구역 %d · 대기 %d · 생성 %.1fms · 회복 %.2f\n위치 (%d, %d, %d)" % [
+		var vs := veg.stats() if veg else {"blocks": 0, "instances": 0, "collision_blocks": 0, "pending": 0}
+		_stats.text = "FPS %d · 그리기 %d · 삼각형 %dk\n구역 %d · 대기 %d · 생성 %.1fms · 회복 %.2f\n식생 블록 %d · 개체 %d · 충돌 %d · 대기 %d\n위치 (%d, %d, %d)" % [
 			Engine.get_frames_per_second(),
 			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
 			int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0),
-			st.chunks, st.pending, st.last_build_ms, r, p.x, p.y, p.z]
+			st.chunks, st.pending, st.last_build_ms, r,
+			vs.blocks, vs.instances, vs.collision_blocks, vs.pending, p.x, p.y, p.z]
 
 
-## 스크린샷 도구: 지형 구역이 아직 만들어지는 중이면 기다린다.
+## 스크린샷 도구: 지형 구역·식생 블록이 아직 만들어지는 중이면 기다린다.
 func busy() -> bool:
-	return _terrain.stats().pending > 0
+	return _terrain.stats().pending > 0 or (veg != null and veg.busy())
 
 
 func set_preview_recovery(v: float) -> void:
@@ -116,10 +121,22 @@ func _marker(kind: String) -> Dictionary:
 	return {}
 
 
-func _tex(name: String) -> ImageTexture:
+func _img(name: String) -> Image:
 	var res = load(BAKED + name) if ResourceLoader.exists(BAKED + name) else null
-	var img: Image = res if res is Image else (res.get_image() if res is Texture2D else null)
+	return res if res is Image else (res.get_image() if res is Texture2D else null)
+
+
+func _tex(name: String) -> ImageTexture:
+	var img := _img(name)
 	return ImageTexture.create_from_image(img) if img else null
+
+
+func _map_cfg() -> Dictionary:
+	var f := FileAccess.open("res://maps/first_island/map.json", FileAccess.READ)
+	if f == null:
+		return {}
+	var d = JSON.parse_string(f.get_as_text())
+	return d if d is Dictionary else {}
 
 
 # ---------- 빌드 ----------
@@ -169,6 +186,8 @@ func _build_terrain() -> void:
 	_terrain.baked_dir = BAKED
 	_terrain.material = mat
 	add_child(_terrain)
+	if _terrain.field == null:
+		_terrain.load_map()   # 트리 밖(헤드리스 테스트)에서도 높이장이 준비되게
 
 
 func _build_recovery() -> void:
@@ -244,6 +263,27 @@ func _build_water() -> void:
 	w.circular = true
 	w.position = Vector3(c.x, (level + floor_y) * 0.5, c.y)
 	add_child(w)
+
+
+## 식생·바위: 구운 구역·길 지도 + 표식 + map.json 반경. 물 판정은 VegetationField 가 그룹 "water" 로 붙인다.
+func _build_vegetation() -> void:
+	var zones := _img("zones.png")
+	var paths := _img("paths.png")
+	if zones == null or paths == null:
+		push_error("Island1km: zones/paths 없음 — 식생 생략")
+		return
+	var mc := _map_cfg()
+	var cfg := {}
+	for k in ["tower_radius", "lake_radius", "summit_radius"]:
+		if mc.has(k):
+			cfg[k] = float(mc[k])
+	if _veg_catalog == null:
+		_veg_catalog = VegCatalog.new()
+	var ctx := VegContext.new(field, zones, paths, markers, cfg)
+	veg = VegetationField.new()
+	veg.name = "Vegetation"
+	add_child(veg)
+	veg.setup(ctx, _veg_catalog)
 
 
 ## 지도 가장자리 보이지 않는 벽 — 밖에는 지형·충돌이 없다 (서·북은 나중에 세계가 이어지면 없앤다).

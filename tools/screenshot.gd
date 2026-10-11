@@ -27,6 +27,7 @@ const SCENES := {
 		"slope_air": [Vector3(140, 70, 330), Vector3(-40, 0, 170)],
 		"summit": [Vector3(-60, 3, 260), Vector3(20, 60, -120)],
 		"air": [Vector3(1000, 520, 1150), Vector3(0, 0, -100)],
+		"forest": [Vector3(-620, 2.5, 80), Vector3(-560, 3, 140)],   # 서쪽 활엽수림 안 (zones.png 값 1, 평지)
 	},
 }
 const SETTLE_FRAMES := 45

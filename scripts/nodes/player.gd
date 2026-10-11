@@ -110,23 +110,47 @@ func _add_side_wall_rays() -> void:
 		_side_rays.append(r)
 
 
+## 등반 벽으로 쓸 수 있는 충돌체인가: 그룹 "no_climb"(나무 줄기 등 얇은 기둥)은 벽 각도여도 오르지 않는다.
+static func climbable_collider(c: Object) -> bool:
+	return c != null and not (c is Node and (c as Node).is_in_group("no_climb"))
+
+
+## 레이가 등반 가능한 충돌체에 맞았나 (no_climb 에 맞으면 안 맞은 것으로 본다)
+func _ray_wall_hit(r: RayCast3D) -> bool:
+	return r.is_colliding() and climbable_collider(r.get_collider())
+
+
 ## 가운데 가슴 레이 법선에 옆 레이 법선을 걸러 섞는다 (Locomotion.average_wall_normal). 가운데가 맞았을 때만 부른다.
 func _wall_ray_normal() -> Vector3:
 	var sides := []
 	for r: RayCast3D in _side_rays:
-		sides.append(r.get_collision_normal() if r.is_colliding() else Vector3.ZERO)
+		sides.append(r.get_collision_normal() if _ray_wall_hit(r) else Vector3.ZERO)
 	return Locomotion.average_wall_normal(_wall_ray.get_collision_normal(), sides)
+
+
+## move_and_slide 벽 접촉 법선 (get_wall_normal). 그 법선을 낸 충돌체가 no_climb 이면 ZERO.
+func _slide_wall_normal(climbing: bool) -> Vector3:
+	if not is_on_wall():
+		return Vector3.ZERO
+	var n := get_wall_normal()
+	if not Locomotion.is_climbable(n, climbing):
+		return Vector3.ZERO
+	for i in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		if col.get_normal().is_equal_approx(n) and not climbable_collider(col.get_collider()):
+			return Vector3.ZERO
+	return n
 
 
 func _sense() -> Dictionary:
 	var climbing := locomotion.state == Locomotion.State.CLIMBING
 	var wall_normal := Vector3.ZERO
-	if _wall_ray.is_colliding():
+	if _ray_wall_hit(_wall_ray):
 		var n := _wall_ray_normal()
 		if Locomotion.is_climbable(n, climbing):
 			wall_normal = n
-	elif is_on_wall() and Locomotion.is_climbable(get_wall_normal(), climbing):
-		wall_normal = get_wall_normal()     # 가파른 지형 경사: 가슴 높이 레이가 경사면과 나란해 빗나갈 때
+	elif not _wall_ray.is_colliding():
+		wall_normal = _slide_wall_normal(climbing)     # 가파른 지형 경사: 가슴 높이 레이가 경사면과 나란해 빗나갈 때
 	return {
 		"on_floor": is_on_floor(),
 		"wall_normal": wall_normal,

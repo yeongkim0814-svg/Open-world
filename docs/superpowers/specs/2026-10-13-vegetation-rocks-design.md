@@ -21,13 +21,19 @@
 
 | 층 | 블록 | 보이는 거리 | 종류 |
 |---|---|---|---|
-| 풀 GRASS | 16 m | 0~55 m (끝 15 m 페이드) | 다발풀·넓은잎·꽃(노랑·흰)·낮은 풀 = GrassGen 4종 × 변형 2 |
+| 풀 GRASS | 16 m | 0~55 m (끝 15 m 페이드) | 다발풀·넓은잎·꽃(노랑·흰)·낮은 풀 = GrassGen 4종 × 변형 2 (그리기 칸마다 변형 하나) |
 | 덤불 SHRUB | 64 m | 0~160 m | TreeGen SHRUB + 꽃무리(풀 꽃 3~6개 묶음) |
-| 나무 TREE | 128 m | 가까이 0~260 m 전체 메시 / 멀리 240~700 m 단순 메시 | 활엽수 3형태(둥근 참나무형 ROUND, 기둥형 COLUMN, 넓은 평관형 SPREAD 신규) × 변형 6 |
-| 바위 ROCK | 128 m | 0~500 m | RockGen ROUND·SLAB·PILLAR × 변형 4 |
+| 나무 TREE | 128 m | 가까이 0~220 m 전체 메시 / 멀리 220~700 m 단순 메시 (블록 중심 거리) | 활엽수 3형태(둥근 참나무형 ROUND, 기둥형 COLUMN, 넓은 평관형 SPREAD 신규) × 변형 3 |
+| 바위 ROCK | 128 m | 0~500 m (작은 바위 < 1.2 m 는 0~150 m) | RockGen ROUND·SLAB·PILLAR × 변형 4 |
 
-- 거리 전환은 `GeometryInstance3D.visibility_range_begin/end` + margin(겹침 20 m)으로. 블록당 (메시 종류마다) MultiMeshInstance3D 1개.
-- 나무 단순 메시(LOD1): 줄기 1(4각) + 수관 1~2 덩어리, ≤ 40 삼각형. TreeGen.build(seed, kind, lod)로 같은 시드의 실루엣을 맞춘다.
+- **그리기 칸(측정 후 조정, 2026-10-13 Task 6)**: 블록은 배치 계산 단위일 뿐, 그리기는 더 큰 칸으로 모은다 — 칸 하나 × 메시 종류 하나 = MultiMeshInstance3D 1개.
+  칸 크기: 풀 128 m, 덤불 256 m, 나무 LOD0 256 m / LOD1 1024 m, 바위 가까이 256 m / 멀리 512 m, 그림자 전용 2048 m.
+  블록이 생기거나 지워지거나 LOD 가 바뀌면 그 칸만 다시 만든다. 블록마다 MultiMesh 를 두면 4시점 그리기 호출이 550~1050 이었다.
+- 나무 LOD 는 블록 중심 거리로 고른다(전환·해제 여유 8 m). 먼 단순 메시(LOD1)·먼 큰 바위는 형태마다 메시 하나(변형 _0)로 묶는다.
+- 나무·덤불은 줄기·잎을 한 면으로 합친다(style_foliage 의 UV.x = 줄기 표시) — MultiMesh 하나 = 그리기 호출 1개.
+- 그림자: 그림자 거리(80 m) 안 블록의 나무 LOD1 메시·큰 바위를 그림자 전용(SHADOWS_ONLY)으로 따로 그린다. 보이는 메시는 그림자를 드리우지 않는다.
+- 측정(2 km 장면, Compatibility, 4시점 × 4방향 최악): 그리기 호출 160·180·230·195, 삼각형 30만·29만·47만·42만 (스폰·해안 마을·숲·정상). step(2.5) 평균 2.42 ms, p90 2.59, p99 3.10 (단발 최대 10.9).
+- 나무 단순 메시(LOD1): 줄기 1(4각) + 수관 1~2 덩어리, ≤ 40 삼각형. TreeGen.build(seed, kind, lod)로 만든다 (카탈로그는 변형마다 갖지만, 그리기 칸은 형태마다 변형 _0 의 LOD1 하나로 묶는다 — 위).
 
 ## 4. 배치 규칙
 
@@ -39,8 +45,8 @@
 
 **풀**: 초원 평균 0.8 /m² (군락 안 최대 1.6), 활엽수림 바닥 0.35 /m². 경사 ≤ 50°. 개체: 크기 0.6~1.4, 높이 비 0.85~1.2, 기울기 ≤ 8°, 색조 ±(instance custom).
 **덤불**: 숲 가장자리(구역 경계 20 m 안)·길섶(길에서 2~6 m)에 1 /150 m², 그 밖 초원 1 /1500 m².
-**나무**: 활엽수림 1 /200 m² (나무무리 노이즈 상위 65 % 안, 빈터 35 %), 초원 1 /3000 m² (3~7그루 무리 위주). 경사 ≤ 40°(normal.y ≥ 0.77). 최소 간격 4 m(같은 블록 안). 크기 0.75~1.35, 형태 비율 ROUND 45 / COLUMN 25 / SPREAD 30 %.
-**바위**: 경사 가중 — normal.y 0.5~0.85: 1 /150 m²; 절벽 아래(10 m 안에 normal.y < 0.5) 돌무더기 1 /60 m² 작은 것 위주; 평지 노두 1 /4000 m² 무리 2~5. 70° 넘는 면 위에는 두지 않음. 크기 분포: 작은 0.4~1.2 (70 %), 중간 1.2~2.5 (25 %), 큰 2.5~5 (5 %). 묻힘 = 크기 × 0.2~0.4, 기울기 ≤ 25°.
+**나무**: 활엽수림 1 /200 m² (나무무리 노이즈 상위 65 % 안, 빈터 35 %), 초원 1 /3000 m² (3~7그루 무리 위주). 경사 ≤ 40°(normal.y ≥ 0.77). 최소 간격 4 m(같은 블록 안). 크기 0.75~1.35, 형태 비율 ROUND 45 / COLUMN 25 / SPREAD 30 %, 변형 3.
+**바위**: 경사 가중 — normal.y 0.5~0.85: 1 /150 m²; 절벽 아래(10 m 안에 normal.y < 0.5) 돌무더기 1 /60 m² 작은 것 위주; 평지 노두 1 /4000 m² 무리 2~5. 70° 넘는 면 위에는 두지 않음. 크기 분포: 작은 0.4~1.2 (70 %), 중간 1.2~2.5 (25 %), 큰 2.5~5 (5 %). 형태 ROUND 50 / SLAB 30 / PILLAR 20 % (평지 노두는 PILLAR 5 % — 풀밭에 선 기둥은 세운 돌처럼 보인다). 묻힘 = 크기 × 0.2~0.4, 기울기 ≤ 25°.
 
 **제외 (모든 층)**
 - 길(흙길·포장길) 1.5 m, 수로 2 m, 개천 3 m (paths 지도 표본 확인).
@@ -61,7 +67,7 @@
 | `scripts/core/veg/veg_context.gd` (`VegContext`) | 높이장·구역·길 이미지·표식·물 판정을 묶고 `zone_at`, `path_kind_near`, `excluded(layer, x, z)`, `slope_ny` 제공 | HeightField, Image |
 | `scripts/core/veg/veg_placement.gd` (`VegPlacement`) | `block(ctx, layer, key) -> Array[Dictionary]` {mesh_id, xform, custom} — 순수·결정적 | VegContext |
 | `scripts/core/veg/veg_catalog.gd` (`VegCatalog`) | 메시·재질 생성(풀·덤불·나무 LOD0/1·바위), mesh_id 표, 바위 볼록 모양 | GrassGen, TreeGen, RockGen, StylePalette |
-| `scripts/nodes/vegetation_field.gd` (`VegetationField`) | 카메라 주변 블록 스트리밍(층별 반경·프레임 예산), MultiMesh 생성, 충돌 블록 | 위 셋 |
+| `scripts/nodes/vegetation_field.gd` (`VegetationField`) | 카메라 주변 블록 스트리밍(층별 반경·프레임 예산 2.5 ms, 블록 배치는 격자 줄 단위로 나눠 계산), 그리기 칸 MultiMesh, 충돌 블록(줄기 원기둥 모양은 (id, 크기 구간) 공유) | 위 셋 |
 | `scripts/core/gen/tree_gen.gd` | SPREAD 형태 + `lod` 인자 추가 | MeshKit |
 | `scripts/core/gen/grass_gen.gd` | LOW(낮은 풀) 종류 추가, 꽃 색 2가지(정점색) | MeshKit |
 | `scripts/nodes/island_1km.gd` | VegetationField 붙이기, `busy()`에 스트리밍 대기 포함, 디버그 패널에 개체 수 | |
