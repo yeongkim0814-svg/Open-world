@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/nodes/first_island.gd" id="world"]
 [ext_resource type="Script" path="res://scripts/nodes/terrain.gd" id="terrain"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/nodes/water.gd" id="water"]
 [ext_resource type="Shader" path="res://shaders/vitality.gdshader" id="vshader"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="player"]
+[ext_resource type="PackedScene" path="res://scenes/env/grass_field.tscn" id="grass_field"]
 [ext_resource type="PackedScene" path="res://scenes/touch_controls.tscn" id="touch"]
 [ext_resource type="Script" path="res://scripts/nodes/debug_hud.gd" id="hud"]
 [ext_resource type="Script" path="res://scripts/nodes/lake.gd" id="lake"]
@@ -431,3 +432,6 @@ offset_right = 400.0
 offset_bottom = 160.0
 script = ExtResource("hud")
 player = NodePath("../../Player")
+
+[node name="GrassField" parent="." instance=ExtResource("grass_field")]
+terrain = NodePath("../Terrain")
