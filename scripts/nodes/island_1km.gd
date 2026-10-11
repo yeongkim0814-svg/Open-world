@@ -7,7 +7,6 @@ extends Node3D
 const BAKED := "res://maps/first_island/baked/"
 const TERRAIN := preload("res://shaders/style_terrain.gdshader")
 const WATER := preload("res://shaders/style_water.gdshader")
-const LAKE_R := 48.0
 const LEVEL_BELOW_CREST := 1.4   ## 첫 수위 = 둑 꼭대기 − 1.4m (수문 1개당 −3.9m는 C)
 const LAKE_DEPTH := 22.0
 const ZONE_KEYS := ["grass", "zone_broadleaf", "zone_conifer", "zone_wetland", "zone_highland", "sand", "zone_wasteland"]
@@ -231,16 +230,17 @@ func _build_water() -> void:
 		return
 	var c := Vector2(lk.x, lk.z)
 	var crest := float(lk.get("crest", 16.0))
+	var lake_r := float(lk.get("radius", 48.0))   ## 수면 반경 (굽기 cfg lake_radius)
 	var level := crest - LEVEL_BELOW_CREST
 	var floor_y := crest - LAKE_DEPTH
 	var lake := MeshInstance3D.new()
 	lake.name = "LakeSurface"
-	lake.mesh = _water_grid(c, LAKE_R + 2.0, 2.0, level, 6.0, LAKE_R + 2.0)
+	lake.mesh = _water_grid(c, lake_r + 2.0, 2.0, level, 6.0, lake_r + 2.0)
 	lake.material_override = _water_mat(false)
 	lake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(lake)
 	var w := Water.new()   # 수영 판정 (그룹 "water")
-	w.size = Vector3(LAKE_R * 2.0, level - floor_y, LAKE_R * 2.0)
+	w.size = Vector3(lake_r * 2.0, level - floor_y, lake_r * 2.0)
 	w.position = Vector3(c.x, (level + floor_y) * 0.5, c.y)
 	add_child(w)
 

@@ -2,7 +2,12 @@
  "world": 2048,
  "size": 2048,
  "min_h": -20,
- "max_h": 200,
+ "max_h": 420,
  "smooth_radius": 40,
- "edge_sea": false
+ "edge_sea": false,
+ "peak_height": 350,
+ "peak_radius": 700,
+ "summit_radius": 180,
+ "lake_radius": 110,
+ "tower_radius": 45
 }
