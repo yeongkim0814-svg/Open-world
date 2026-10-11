@@ -13,6 +13,11 @@ const BLOCK := {
 
 const GRASS_KINDS := ["tuft", "broad", "flower", "low"]
 const ROCK_KINDS := ["round", "slab", "pillar"]
+const TREE_KINDS := ["round", "column", "spread"]
+const GRASS_VARIANTS := 2
+const SHRUB_VARIANTS := 4
+const TREE_VARIANTS := 6
+const ROCK_VARIANTS := 4
 
 # 풀 (설계서 4장)
 const GRASS_MAX := 1.6
@@ -28,6 +33,23 @@ const ROCK_MAX_SLOPE_NY := 0.342      # cos 70° 보다 가파른 면은 제외
 const ROCK_TILT := deg_to_rad(25.0)
 
 static var _noise_cache := {}
+
+
+## 이 모듈이 낼 수 있는 모든 mesh id (VegCatalog 가 이 목록으로 메시를 만든다)
+static func mesh_ids() -> PackedStringArray:
+	var out := PackedStringArray()
+	for k in GRASS_KINDS:
+		for v in GRASS_VARIANTS:
+			out.append("grass_%s_%d" % [k, v])
+	for v in SHRUB_VARIANTS:
+		out.append("shrub_%d" % v)
+	for k in TREE_KINDS:
+		for v in TREE_VARIANTS:
+			out.append("tree_%s_%d" % [k, v])
+	for k in ROCK_KINDS:
+		for v in ROCK_VARIANTS:
+			out.append("rock_%s_%d" % [k, v])
+	return out
 
 
 ## 노이즈 캐시. kind: "clump_grass"(1/25) "clump_tree"(1/70) "species"(1/18)
@@ -246,12 +268,12 @@ static func _try_tree(ctx: VegContext, rng: RandomNumberGenerator, x: float, z: 
 	if ctx.excluded(VegContext.Layer.TREE, x, z):
 		return
 	placed.append(p)
-	var kind: String = ["round", "column", "spread"][_pick(rng, [45.0, 25.0, 30.0])]
+	var kind: String = TREE_KINDS[_pick(rng, [45.0, 25.0, 30.0])]
 	var sz := rng.randf_range(0.75, 1.35)
 	var basis := Basis(Vector3.UP, rng.randf() * TAU) * Basis.from_scale(Vector3.ONE * sz)
 	var sp := species.get_noise_2d(x, z)
 	var custom := Color(0.0, rng.randf(), sp * 0.5 + 0.5, 0.0)
-	out.append(_item("tree_%s_%d" % [kind, rng.randi() % 6], Transform3D(basis, Vector3(x, ctx.ground_y(x, z, 0.5), z)), custom, sz))
+	out.append(_item("tree_%s_%d" % [kind, rng.randi() % TREE_VARIANTS], Transform3D(basis, Vector3(x, ctx.ground_y(x, z, 0.5), z)), custom, sz))
 
 
 # ---------- 바위 ----------

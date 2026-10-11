@@ -10,10 +10,11 @@ enum Kind { TUFT, BROAD, FLOWER, LOW }
 const TIP_RATIO_MIN := 0.6   ## 잎 끝 폭 / 뿌리 폭 하한 (뾰족함 방지)
 
 
-static func build(kind: int) -> ArrayMesh:
+## variant 0 = 기본, 1+ = 같은 종류의 다른 잎 배치 (seed 만 다름)
+static func build(kind: int, variant := 0) -> ArrayMesh:
 	var k := MeshKit.new()
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 7000 + kind
+	rng.seed = 7000 + kind + variant * 131
 	var top := 0.0
 	match kind:
 		Kind.TUFT:
