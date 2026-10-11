@@ -29,6 +29,10 @@ var _world: float
 var _marker_ex: Array = []
 var _peaks: Array = []
 var _summit_r: float
+# 길 없는 구역 캐시: 16 m 칸 → 칸 + 4 m 여백 안에 길 픽셀이 하나도 없으면 true (excluded 의 길 검사 생략용)
+const PATH_CELL := 16.0
+const PATH_MARGIN := 4.0
+var _path_clear: Dictionary = {}
 
 
 func _init(p_field: HeightField, zones: Image, paths: Image, markers: Array, cfg := {}, water_level := Callable()) -> void:
@@ -101,7 +105,9 @@ func excluded(layer: int, x: float, z: float) -> bool:
 		for pk in _peaks:
 			if p.distance_to(pk) < _summit_r:
 				return true
-	# 길: 종류마다 제외 반경이 다르다
+	# 길: 종류마다 제외 반경이 다르다 (칸 안에 길이 없으면 생략)
+	if _cell_has_no_path(x, z):
+		return false
 	if _path_kinds(x, z, 1.5) & 0b00110:
 		return true
 	if _path_kinds(x, z, 2.0) & 0b01000:
@@ -118,6 +124,27 @@ func ground_y(x: float, z: float, foot := 0.0) -> float:
 	return minf(
 		minf(field.height_at(x - foot, z - foot), field.height_at(x + foot, z - foot)),
 		minf(field.height_at(x - foot, z + foot), field.height_at(x + foot, z + foot)))
+
+
+## 이 점이 속한 16 m 칸(+4 m 여백)에 길 픽셀이 전혀 없나 — 지연 계산·캐시
+func _cell_has_no_path(x: float, z: float) -> bool:
+	var key := Vector2i(floori(x / PATH_CELL), floori(z / PATH_CELL))
+	if _path_clear.has(key):
+		return _path_clear[key]
+	var w := _paths.get_width(); var h := _paths.get_height()
+	var x0 := key.x * PATH_CELL - PATH_MARGIN; var x1 := (key.x + 1) * PATH_CELL + PATH_MARGIN
+	var z0 := key.y * PATH_CELL - PATH_MARGIN; var z1 := (key.y + 1) * PATH_CELL + PATH_MARGIN
+	var px0 := clampi(roundi((x0 / _world + 0.5) * (w - 1)) - 1, 0, w - 1)
+	var px1 := clampi(roundi((x1 / _world + 0.5) * (w - 1)) + 1, 0, w - 1)
+	var pz0 := clampi(roundi((z0 / _world + 0.5) * (h - 1)) - 1, 0, h - 1)
+	var pz1 := clampi(roundi((z1 / _world + 0.5) * (h - 1)) + 1, 0, h - 1)
+	var reg := _paths.get_region(Rect2i(px0, pz0, px1 - px0 + 1, pz1 - pz0 + 1))
+	if reg.get_format() != Image.FORMAT_R8:
+		reg.convert(Image.FORMAT_R8)   # 빨강 채널 = 길 종류
+	var data := reg.get_data()
+	var clear := data.count(0) == data.size()   # R8: 바이트 = 픽셀
+	_path_clear[key] = clear
+	return clear
 
 
 # 반경 r 안 중심 + 8방향 (r/2, r 두 고리) 표본에 나온 길 종류 비트마스크 (비트 k = 종류 k)

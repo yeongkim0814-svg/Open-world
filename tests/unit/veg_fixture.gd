@@ -44,3 +44,19 @@ static func paths() -> Image:
 
 static func context(water := Callable(), mk: Array = []) -> VegContext:
 	return VegContext.new(field(), zones(), paths(), mk if not mk.is_empty() else markers(), cfg(), water)
+
+
+## 표식 없는 맥락 (정상·마을 제외가 배치 시험을 가리지 않게). 아주 먼 표식 하나만 둔다.
+static func bare_context() -> VegContext:
+	return context(Callable(), [{"kind": "start", "x": -5000.0, "z": -5000.0}])
+
+
+## 경사 지도: h = clamp(40 + 0.9x, 2, 85) → x ≈ -42..50 가 normal.y ≈ 0.74 비탈, 양쪽은 평지
+static func steep_context() -> VegContext:
+	var h := PackedFloat32Array()
+	h.resize(N * N)
+	for j in N:
+		for i in N:
+			h[j * N + i] = clampf(40.0 + 0.9 * (float(i) - 64.0), 2.0, 85.0)
+	var f := HeightField.new(MapBaker.encode_height(h, N), WORLD, MapBaker.H_MIN, MapBaker.H_MAX)
+	return VegContext.new(f, zones(), paths(), [{"kind": "start", "x": -5000.0, "z": -5000.0}], cfg())
