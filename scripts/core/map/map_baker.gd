@@ -12,6 +12,8 @@ const PATH_SHOULDER_M := 5.0         ## 길섶: 길 옆에서 원지형으로 �
 const AQUEDUCT_DIG := 1.5            ## 수로가 파내는 깊이 (m)
 const STREAM_DIG := 2.5              ## 개천 중앙 깊이 (m), V자로 가장자리 0
 const STREAM_SPREAD := 8             ## 개천 폭 추정: 중심선 거리를 퍼뜨리는 횟수 (칸)
+const STEEP_PATH_DEG := 50.0         ## 굽기 뒤 이보다 가파른 길 칸은 경고 (절벽을 지나는 길; 걷기 한계 60도, 갈지자 모퉁이는 40도대)
+const STEEP_PATH_MIN_PX := 2         ## 한 곳(32m 칸)에 이만큼 넘어야 경고
 const DIR_WINDOW := 3                ## 길 방향 추정 창 반경 (px)
 const SMOOTH_RADIUS := 12.0
 const DETAIL := 1.5
@@ -62,7 +64,16 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -
 		if bands[i] == MapLegend.CLIFF_INDEX:
 			cliff[i] = 1
 	var h := HeightBands.build(bands, size, cliff, float(cfg.get("smooth_radius", SMOOTH_RADIUS)), DETAIL, SEED, bool(cfg.get("edge_sea", true)))
-	MapStamps.apply(h, size, world, markers, cfg)
+
+	# 길 (구운 값 = 인덱스 + 1, 0 = 없음) — 봉우리 틈 자리를 정하므로 도장보다 먼저 읽는다
+	var paths := PackedByteArray()
+	paths.resize(size * size)
+	if layers.get("paths") != null:
+		var pl := MapLegend.load_layer(layers["paths"], MapLegend.path_palette(), size)
+		for i in size * size:
+			paths[i] = pl[i] + 1       # −1 → 0
+	MapStamps.apply(h, size, world, markers, cfg, paths)
+	_clear_paths_in_lakes(paths, size, world, markers)
 
 	# 구역 (비어 있음 = 초원 0)
 	var zones := PackedByteArray()
@@ -72,17 +83,14 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -
 		for i in size * size:
 			zones[i] = maxi(zl[i], 0)
 
-	# 길 (구운 값 = 인덱스 + 1, 0 = 없음)
-	var paths := PackedByteArray()
-	paths.resize(size * size)
 	if layers.get("paths") != null:
-		var pl := MapLegend.load_layer(layers["paths"], MapLegend.path_palette(), size)
-		for i in size * size:
-			paths[i] = pl[i] + 1       # −1 → 0
 		_apply_paths(h, paths, size, world)
 		_dig_streams(h, paths, size)
 
 	MapStamps.despike(h, size, world)      # P17: 맨 마지막 (도장·길·개천이 만든 얇은 지느러미까지)
+	var warns: PackedStringArray = result["warnings"]
+	warns.append_array(steep_path_warnings(h, paths, size, world))
+	result["warnings"] = warns
 
 	var lo: float = result["meta"]["min_h"]
 	var hi: float = result["meta"]["max_h"]
@@ -339,3 +347,58 @@ static func preview(baked: Dictionary, size: int) -> Image:
 		img.fill_rect(Rect2i(px - 4, py - 4, 9, 9), Color.BLACK)
 		img.fill_rect(Rect2i(px - 3, py - 3, 7, 7), MapLegend.MARKERS[m["kind"]])
 	return img
+
+
+## 저수호 수면 반경 + 2m 안의 길 칸을 지운다 (길이 해자 안쪽 벽·물속으로 이어지지 않게, 둑 꼭대기에서 끝남).
+static func _clear_paths_in_lakes(paths: PackedByteArray, size: int, world: float, markers: Array) -> void:
+	var k := float(size - 1) / world
+	for m in markers:
+		if m["kind"] != "lake" or not m.has("radius"):
+			continue
+		var r: float = float(m["radius"]) + 2.0
+		var cx: float = m["x"]
+		var cz: float = m["z"]
+		var x0 := maxi(0, int(floor((cx - r) * k + (size - 1) * 0.5)))
+		var x1 := mini(size - 1, int(ceil((cx + r) * k + (size - 1) * 0.5)))
+		var z0 := maxi(0, int(floor((cz - r) * k + (size - 1) * 0.5)))
+		var z1 := mini(size - 1, int(ceil((cz + r) * k + (size - 1) * 0.5)))
+		for pz in range(z0, z1 + 1):
+			var dz := (float(pz) / (size - 1) - 0.5) * world - cz
+			for px in range(x0, x1 + 1):
+				var dx := (float(px) / (size - 1) - 0.5) * world - cx
+				var i := pz * size + px
+				if dx * dx + dz * dz < r * r and (paths[i] == 1 or paths[i] == 2):
+					paths[i] = 0
+
+
+## 굽기 뒤 STEEP_PATH_DEG 보다 가파른 흙길·포장길 칸을 32m 칸으로 묶어 경고 문장으로 (지도 고칠 곳).
+static func steep_path_warnings(h: PackedFloat32Array, paths: PackedByteArray, size: int, world: float) -> PackedStringArray:
+	var out := PackedStringArray()
+	if paths.size() != size * size:
+		return out
+	var cell := world / (size - 1)
+	var lim := tan(deg_to_rad(STEEP_PATH_DEG))
+	var counts := {}
+	var keys: Array[Vector2i] = []
+	for z in range(1, size - 1):
+		for x in range(1, size - 1):
+			var i := z * size + x
+			if not (_is_road(paths[i]) and _is_road(paths[i - 1]) and _is_road(paths[i + 1]) and _is_road(paths[i - size]) and _is_road(paths[i + size])):
+				continue      # 길 안쪽 칸만 (길 가장자리는 깎인 둑 경사가 섞여 잘못 잡힘)
+			var gx := (h[i + 1] - h[i - 1]) / (2.0 * cell)
+			var gz := (h[i + size] - h[i - size]) / (2.0 * cell)
+			if gx * gx + gz * gz <= lim * lim:
+				continue
+			var key := Vector2i(int(floor(((float(x) / (size - 1) - 0.5) * world) / 32.0)), int(floor(((float(z) / (size - 1) - 0.5) * world) / 32.0)))
+			if not counts.has(key):
+				counts[key] = 0
+				keys.append(key)
+			counts[key] += 1
+	for key in keys:
+		if counts[key] >= STEEP_PATH_MIN_PX:
+			out.append(MarkerReader.WARNING_PREFIX + "가파른 길(%.0f도 넘음) 근처 (%d, %d) — 절벽 선을 피하거나 길을 돌리세요" % [STEEP_PATH_DEG, key.x * 32 + 16, key.y * 32 + 16])
+	return out
+
+
+static func _is_road(v: int) -> bool:
+	return v == 1 or v == 2

@@ -25,13 +25,15 @@ const PEAK_RADIUS := 700.0
 const SUMMIT_RADIUS := 180.0
 const CLIFF_WIDTH := 48.0           ## 정상 아래 절벽대 폭 (m)
 const CLIFF_DROP := 90.0            ## 절벽대 높이 (m): 평균 경사 약 62도
-const GAP_COUNT := 3
+const GAP_COUNT := 3                ## 틈 최소 개수 (길이 더 많이 지나면 더 많아짐)
+const GAP_MERGE := 0.35             ## 이 각(약 20도) 안의 길은 한 틈으로
+const GAP_MIN_SEP := 0.87           ## 시드로 채우는 틈은 기존 틈과 50도 이상 떨어짐
 const GAP_FULL_HALF := 0.1222       ## 틈 완전 경사로 반각 (7도)
 const GAP_BLEND := 0.0524           ## 틈 가장자리 전이 (3도)
 const SUMMIT_FADE := 100.0          ## 정상 평탄 보정(원지형 → 기준 높이)이 사라지는 거리
 const FALL_POWER := 1.3             ## 절벽 아래 오목한 비탈 지수 (1.3: 절벽 바로 아래 약 30도)
 const SPUR_SLOPE := 0.577           ## 틈 경사로 기울기 (tan 30도): 절벽대 안에서만
-const SPUR_FLANK := 0.84            ## 지맥 옆면 기울기 (tan 40도)
+const SPUR_FLANK := 0.47            ## 지맥 옆면 기울기 (tan 25도) — 옆면도 걸을 만한 넓은 능선
 const SPUR_LEN := 400.0             ## 절벽대 아래 틈 능선(지맥)이 원래 비탈로 녹아드는 거리 (m)
 const RIDGE_AMP := 16.0             ## 방사형 능선·골짜기 최대 진폭 (m)
 const RIDGE_FADE_IN := 90.0
@@ -43,13 +45,16 @@ const DESPIKE_RING := 4.0
 
 
 ## cfg (선택): lake_radius(48), tower_radius(10), peak_height(350), peak_radius(700), summit_radius(180).
-static func apply(h: PackedFloat32Array, size: int, world: float, markers: Array, cfg := {}) -> void:
+## paths (선택): 구운 길 인덱스 (1 흙길·2 포장길) — 봉우리 절벽대를 지나는 길 자리에 틈을 낸다.
+static func apply(h: PackedFloat32Array, size: int, world: float, markers: Array, cfg := {}, paths := PackedByteArray()) -> void:
 	var lake_r := float(cfg.get("lake_radius", LAKE_WALL_R))
 	var tower_r := float(cfg.get("tower_radius", TOWER_R))
 	for m in markers:
 		if m["kind"] == "peak":
+			var summit_r := float(cfg.get("summit_radius", SUMMIT_RADIUS))
+			var roads := road_crossings(paths, size, world, m["x"], m["z"], summit_r + 8.0, summit_r + CLIFF_WIDTH - 8.0)
 			_stamp_peak(h, size, world, m, float(cfg.get("peak_height", PEAK_HEIGHT)),
-				float(cfg.get("peak_radius", PEAK_RADIUS)), float(cfg.get("summit_radius", SUMMIT_RADIUS)))
+				float(cfg.get("peak_radius", PEAK_RADIUS)), summit_r, roads)
 	var orig := h.duplicate()      # 봉우리까지 찍은 지형 (고리 중앙값은 이것으로 잰다)
 	var lakes: Array = []
 	for m in markers:
@@ -187,13 +192,87 @@ static func _stamp_village(h: PackedFloat32Array, size: int, world: float, cx: f
 
 ## 봉우리 틈 각도 3개 (라디안, atan2(dz, dx) 관례). 표식 위치 + 시드로 결정 — 같은 입력 = 같은 틈.
 ## 약 120도 간격에 ±20도 흔들림.
-static func peak_gap_angles(x: float, z: float) -> Array:
+## 틈 각도: 절벽대를 지나는 길 각도(road_angles, 20도 안은 하나로) 먼저, 모자라면 시드 각도 중
+## 기존 틈과 50도 이상 떨어진 것으로 GAP_COUNT 까지 채운다. 그래도 모자라면 가장 넓은 빈 각의 가운데.
+static func peak_gap_angles(x: float, z: float, road_angles := []) -> Array:
+	var out: Array = []
+	var sorted_roads := road_angles.duplicate()
+	sorted_roads.sort()
+	for a in sorted_roads:
+		var merged := false
+		for i in out.size():
+			if _ang_dist(out[i], a) < GAP_MERGE:
+				merged = true
+		if not merged:
+			out.append(_cluster_mean(sorted_roads, a))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([MapBaker.SEED, int(round(x)), int(round(z))])
 	var start := rng.randf() * TAU
-	var out: Array = []
 	for i in GAP_COUNT:
-		out.append(wrapf(start + i * TAU / GAP_COUNT + rng.randf_range(-0.35, 0.35), -PI, PI))
+		if out.size() >= GAP_COUNT:
+			break
+		var c := wrapf(start + i * TAU / GAP_COUNT + rng.randf_range(-0.35, 0.35), -PI, PI)
+		if _far_from(out, c):
+			out.append(c)
+	while out.size() < GAP_COUNT:
+		out.append(_widest_gap_mid(out))
+	return out
+
+
+## 길 각도 a 둘레(GAP_MERGE 안) 각도들의 평균
+static func _cluster_mean(angles: Array, a: float) -> float:
+	var sx := 0.0
+	var sy := 0.0
+	for b in angles:
+		if _ang_dist(a, b) < GAP_MERGE:
+			sx += cos(b)
+			sy += sin(b)
+	return atan2(sy, sx)
+
+
+static func _ang_dist(a: float, b: float) -> float:
+	return absf(wrapf(a - b + PI, 0.0, TAU) - PI)
+
+
+static func _far_from(list: Array, a: float) -> bool:
+	for b in list:
+		if _ang_dist(a, b) < GAP_MIN_SEP:
+			return false
+	return true
+
+
+static func _widest_gap_mid(list: Array) -> float:
+	if list.is_empty():
+		return 0.0
+	var s := list.duplicate()
+	s.sort()
+	var best := 0.0
+	var mid := 0.0
+	for i in s.size():
+		var a: float = s[i]
+		var b: float = s[(i + 1) % s.size()] + (TAU if i == s.size() - 1 else 0.0)
+		if b - a > best:
+			best = b - a
+			mid = wrapf(a + (b - a) * 0.5, -PI, PI)
+	return mid
+
+
+## 고리 r0~r1 (m) 안 길 칸(흙길·포장길)의 각도 목록 (중심 cx, cz 기준). paths 가 비면 빈 목록.
+static func road_crossings(paths: PackedByteArray, size: int, world: float, cx: float, cz: float, r0: float, r1: float) -> Array:
+	var out: Array = []
+	if paths.size() != size * size:
+		return out
+	var b := _box(size, world, cx, cz, r1)
+	for pz in range(b.position.y, b.end.y):
+		var dz := _w(pz, size, world) - cz
+		for px in range(b.position.x, b.end.x):
+			var q := paths[pz * size + px]
+			if q != 1 and q != 2:
+				continue
+			var dx := _w(px, size, world) - cx
+			var d2 := dx * dx + dz * dz
+			if d2 >= r0 * r0 and d2 <= r1 * r1:
+				out.append(atan2(dz, dx))
 	return out
 
 
@@ -201,10 +280,10 @@ static func peak_gap_angles(x: float, z: float) -> Array:
 ## 절벽대(폭 48m·높이 90m, 틈 3곳은 경사로) → 오목한 비탈(peak_radius 에서 0) + 방사형 능선·골짜기.
 ## 정상 보정은 원지형 평균(기준 높이)과의 차를 summit_radius 밖 SUMMIT_FADE 에 걸쳐 없앤다 → 먼 곳의 칠한 단차는 그대로.
 ## 마커에 m["gaps"] (틈 각도) 기록.
-static func _stamp_peak(h: PackedFloat32Array, size: int, world: float, m: Dictionary, peak_h: float, peak_r: float, summit_r: float) -> void:
+static func _stamp_peak(h: PackedFloat32Array, size: int, world: float, m: Dictionary, peak_h: float, peak_r: float, summit_r: float, road_angles := []) -> void:
 	var cx: float = m["x"]
 	var cz: float = m["z"]
-	var gaps := peak_gap_angles(cx, cz)
+	var gaps := peak_gap_angles(cx, cz, road_angles)
 	m["gaps"] = gaps
 	# 각도 표: 틈 가중치(1 = 완전 경사로), 능선·골짜기 노이즈 (−1~1)
 	var gap_w := PackedFloat32Array()

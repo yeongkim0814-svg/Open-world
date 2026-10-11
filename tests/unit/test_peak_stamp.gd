@@ -121,3 +121,33 @@ func test_peak_gap_spur_walkable():
 			worst = maxf(worst, _slope_deg(h, d, g))
 			d += 10.0
 	assert_true(worst <= 42.0, "지맥 등 최대 경사 %.1f도" % worst)
+
+## 길이 절벽대를 지나는 곳 = 틈 (설계서 A3 보정): 길 각도가 틈 목록에 들어가고 그 길 위는 걸을 만하다.
+func test_peak_gaps_follow_paths():
+	var h := _flat(5.0)
+	var paths := PackedByteArray()
+	paths.resize(S * S)
+	var road_a := 1.0
+	for i in range(100, 320):
+		var d := float(i)
+		for w: float in [-1.5, 0.0, 1.5]:
+			var x := d * cos(road_a) - w * sin(road_a)
+			var z := d * sin(road_a) + w * cos(road_a)
+			var px := int(round((x / W + 0.5) * (S - 1)))
+			var pz := int(round((z / W + 0.5) * (S - 1)))
+			paths[pz * S + px] = 1
+	var m := _peak()
+	MapStamps.apply(h, S, W, [m], {}, paths)
+	var gaps: Array = m["gaps"]
+	assert_true(gaps.size() >= 3, "틈 3곳 이상: %d" % gaps.size())
+	var best := PI
+	for g in gaps:
+		best = minf(best, absf(wrapf(g - road_a + PI, 0.0, TAU) - PI))
+	assert_true(best < deg_to_rad(3.0), "길 방향에 틈: %.1f도 차" % rad_to_deg(best))
+	for d in [190.0, 205.0, 220.0]:
+		var s := _slope_deg(h, d, road_a)
+		assert_true(s <= 35.0, "길 위 경사 d=%.0f: %.1f도" % [d, s])
+	# 다른 틈은 길 틈과 50도 이상 떨어진다
+	for g in gaps:
+		var dd := absf(wrapf(g - road_a + PI, 0.0, TAU) - PI)
+		assert_true(dd < deg_to_rad(3.0) or dd > deg_to_rad(50.0), "틈 간격 %.1f도" % rad_to_deg(dd))

@@ -7,6 +7,7 @@
 - 표식: 수문 3곳(해안 마을 북쪽 · 북동쪽 산 아래 · 동남쪽 산 중턱), 해안 마을을 스폰 서쪽 해안으로, 산마을(새 색),
   전망대를 남서 절벽 해안 위로, 다리 = 길이 개천을 건너는 곳.
 - 개천(새 길 종류): 수문 A → 해안 마을 → 바다 / 수문 C → 폭포 → A 개천 상류 합류 / 수문 B → 동쪽 바다.
+- 길(A3 보정): 봉우리 반경 330m 안의 GPT 길 갈래는 지우고 설계한 산길만 (절벽대 틈은 굽기가 길 자리에 낸다).
 - 구역(A3): 첫 지역은 초원·활엽수림만 (침엽수 → 활엽수, 고지·습지·해안·황무지 → 초원).
 사용: python3 tools/fix_gpt_map.py   (결정적)
 """
@@ -49,7 +50,8 @@ DIRT = [
     [(700, 690), (600, 700), (500, 720), (430, 735)],                                 # 스폰 → 해안 마을
     [(430, 735), (450, 640), (440, 520)],                                             # 해안 마을 → 수문 A
     [(430, 735), (300, 620), (150, 450), (40, 300), (-60, 215)],                       # 해안 마을 → 산마을
-    [(-60, 215), (-20, 140), (-40, 60), (0, -20)],                                    # 산마을 → 고리 틈(남) → 정상
+    # 산마을 → 고리 틈(남, 굽기가 이 길 자리에 틈을 냄) → 정상: 지그재그(갈지자) 산길로 경사 약 20도
+    [(-60, 215), (-10, 200), (-70, 165), (-15, 140), (-60, 105), (-12, 82), (-45, 55), (-15, 40), (-8, 0), (0, -20)],
     [(300, 115), (200, 160), (80, 200), (-60, 215)],                                  # 산마을 ↔ 수문 C
     [(-300, 640), (-200, 520), (-60, 215)],                                           # 전망대 ↔ 산마을
 ]
@@ -129,6 +131,12 @@ def fix_height():
             if math.hypot(x - cx, y - cy) <= rp and near(px[x, y], H) == "plat":
                 if any(near(px[x + dx, y + dy], H) == "hill" for dx in (-2, 0, 2) for dy in (-2, 0, 2)):
                     marks.append((x, y))
+    # 길 칸 근처(8px)는 절벽으로 만들지 않는다 (폭포 절벽이 길을 끊지 않게)
+    road = load("paths").load()
+    def near_road(x, y):
+        return any(near(road[x + dx, y + dy], {"dirt": P["dirt"], "paved": P["paved"]}, 3600)
+                   for dx in range(-8, 9, 4) for dy in range(-8, 9, 4))
+    marks = [(x, y) for x, y in marks if not near_road(x, y)]
     for x, y in marks: px[x, y] = H["cliff"]
     print("waterfall cliff px", len(marks))
     return im
@@ -144,9 +152,21 @@ def fix_zones(height):
     return z
 
 
+PEAK = (26.0, -190.0)
+PEAK_CLEAR = 330.0   # 봉우리 둘레의 GPT 길은 지운다: 절벽대를 아무 데서나 넘던 갈래 → 설계한 산길(DIRT)만 남김
+
+
 def fix_paths():
     p = load("paths"); dr = ImageDraw.Draw(p)
-    # GPT 흙길 유지(오래된 마을 쪽 갈래도 그대로) + 새 길
+    pp = p.load()
+    px0, pz0 = w2p(*PEAK); rp = PEAK_CLEAR * (N - 1) / WORLD
+    cleared = 0
+    for y in range(max(0, int(pz0 - rp)), min(N, int(pz0 + rp) + 1)):
+        for x in range(max(0, int(px0 - rp)), min(N, int(px0 + rp) + 1)):
+            if math.hypot(x - px0, y - pz0) <= rp and near(pp[x, y], {"dirt": P["dirt"], "paved": P["paved"]}, 3600):
+                pp[x, y] = WHITE; cleared += 1
+    print("peak GPT path px cleared", cleared)
+    # GPT 흙길 유지(봉우리 밖) + 새 길
     for line in DIRT: dr.line([w2p(*q) for q in line], fill=P["dirt"], width=4, joint="curve")
     for s in STREAMS: dr.line([w2p(*q) for q in s], fill=P["stream"], width=6, joint="curve")
     return p

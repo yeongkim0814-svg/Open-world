@@ -208,3 +208,39 @@ func test_bake_peak_marker_and_radius():
 	for m in baked["markers"]:
 		if m["kind"] == "lake":
 			assert_almost(m["radius"], 20.0, 0.0001)
+
+
+## 저수호 안쪽(수면 반경 + 2m)의 길 칸은 지운다 — 길이 해자 벽으로 들어가지 않게.
+func test_paths_cleared_inside_lake():
+	var paths := _blank()
+	paths.fill_rect(Rect2i(10, 32, 60, 4), MapLegend.path_palette()[0])     # 저수호(px ~32) 가로지르는 길
+	var baked := MapBaker.bake(_layers(_height_img(3, 3), paths), S, W)
+	var p := baked["paths"] as PackedByteArray
+	var lake: Dictionary = {}
+	for m in baked["markers"]:
+		if m["kind"] == "lake":
+			lake = m
+	var r: float = lake["radius"]
+	var inside := 0
+	for x in range(10, 70):
+		var wx := (float(x) / (S - 1) - 0.5) * W
+		var wz := (float(33) / (S - 1) - 0.5) * W
+		if Vector2(wx - lake["x"], wz - lake["z"]).length() < r + 1.5 and p[33 * S + x] != 0:
+			inside += 1
+	assert_eq(inside, 0, "저수호 안 길 칸")
+
+## 가파른 곳(40도 넘음)을 지나는 길은 굽기 경고로 알린다.
+func test_steep_path_warning():
+	var img := _blank()
+	var pal := MapLegend.height_palette()
+	img.fill_rect(Rect2i(0, 0, S, S / 2), pal[5])
+	img.fill_rect(Rect2i(0, S / 2, S, S / 2), pal[2])
+	img.fill_rect(Rect2i(0, S / 2 - 2, S, 4), pal[MapLegend.CLIFF_INDEX])
+	var paths := _blank()
+	paths.fill_rect(Rect2i(150, 60, 4, 140), MapLegend.path_palette()[0])
+	var baked := MapBaker.bake(_layers(img, paths), S, W)
+	var found := false
+	for w in baked["warnings"]:
+		if "가파른" in w:
+			found = true
+	assert_true(found, "경고: %s" % str(baked["warnings"]))
