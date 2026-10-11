@@ -107,3 +107,17 @@ func test_peak_gap_spur_fades():
 		var side := (_at(h, d * cos(g - 0.35), d * sin(g - 0.35)) + _at(h, d * cos(g + 0.35), d * sin(g + 0.35))) * 0.5
 		var mid := _at(h, d * cos(g), d * sin(g))
 		assert_true(absf(mid - side) < 15.0, "틈 %.0f도 d=%.0f: 지맥 %.1f vs 옆 %.1f" % [rad_to_deg(g), d, mid, side])
+
+## 틈 지맥 등은 절벽대 아래에서도 걸을 만하다 (칠한 고원 45m 위, 42도 이하).
+func test_peak_gap_spur_walkable():
+	var h := _flat(45.0)
+	var m := _peak()
+	MapStamps.apply(h, S, W, [m], {})
+	var d0 := MapStamps.SUMMIT_RADIUS + MapStamps.CLIFF_WIDTH
+	var worst := 0.0
+	for g in m["gaps"]:
+		var d := d0
+		while d < d0 + MapStamps.SPUR_LEN:
+			worst = maxf(worst, _slope_deg(h, d, g))
+			d += 10.0
+	assert_true(worst <= 42.0, "지맥 등 최대 경사 %.1f도" % worst)

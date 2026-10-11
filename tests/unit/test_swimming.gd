@@ -84,3 +84,12 @@ func test_water_volume_depth():
 	assert_true(w.depth_at(Vector3(20, 0.5, 1)) < 0.0, "수평 범위 밖")
 	assert_true(w.depth_at(Vector3(1, 3.0, 1)) < 0.0, "수면 위")
 	w.free()
+
+## 둥근 물(저수호): 상자 모서리(원 밖)는 물이 아니다.
+func test_round_water_corner_is_dry():
+	var w := Water.new()
+	w.size = Vector3(220, 20, 220)
+	w.circular = true
+	assert_true(w.depth_at(Vector3(0, 5, 100)) > 0.0, "원 안은 물")
+	assert_eq(w.depth_at(Vector3(105, 5, 105)), -1.0, "모서리(148m)는 물 아님")
+	w.free()

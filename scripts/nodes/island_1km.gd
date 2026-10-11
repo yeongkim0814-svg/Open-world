@@ -241,6 +241,7 @@ func _build_water() -> void:
 	add_child(lake)
 	var w := Water.new()   # 수영 판정 (그룹 "water")
 	w.size = Vector3(lake_r * 2.0, level - floor_y, lake_r * 2.0)
+	w.circular = true
 	w.position = Vector3(c.x, (level + floor_y) * 0.5, c.y)
 	add_child(w)
 

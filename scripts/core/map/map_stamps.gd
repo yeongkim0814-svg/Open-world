@@ -32,7 +32,7 @@ const SUMMIT_FADE := 100.0          ## 정상 평탄 보정(원지형 → 기준
 const FALL_POWER := 1.3             ## 절벽 아래 오목한 비탈 지수 (1.3: 절벽 바로 아래 약 30도)
 const SPUR_SLOPE := 0.577           ## 틈 경사로 기울기 (tan 30도): 절벽대 안에서만
 const SPUR_FLANK := 0.84            ## 지맥 옆면 기울기 (tan 40도)
-const SPUR_LEN := 220.0             ## 절벽대 아래 틈 능선(지맥)이 원래 비탈로 녹아드는 거리 (m)
+const SPUR_LEN := 400.0             ## 절벽대 아래 틈 능선(지맥)이 원래 비탈로 녹아드는 거리 (m)
 const RIDGE_AMP := 16.0             ## 방사형 능선·골짜기 최대 진폭 (m)
 const RIDGE_FADE_IN := 90.0
 const ANGLE_STEPS := 1440
@@ -286,6 +286,7 @@ static func _stamp_peak(h: PackedFloat32Array, size: int, world: float, m: Dicti
 				gw = 1.0 - smoothstep(full_m, full_m + blend_m, dd * d)
 			var add := lerpf(a_cliff, maxf(a_cliff, a_gap), gw)
 			var amp := RIDGE_AMP * smoothstep(cliff_end, cliff_end + RIDGE_FADE_IN, d) * (1.0 - (d - summit_r) / span)
+			amp *= 1.0 - gw   # 틈 길(지맥 등)은 능선 노이즈 없이 매끈하게
 			if amp > 0.0:
 				add += amp * lerpf(noise[k0], noise[k1], f)
 			var c := 1.0 - smoothstep(summit_r, summit_r + SUMMIT_FADE, d)
