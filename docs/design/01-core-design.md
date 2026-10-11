@@ -16,7 +16,7 @@
 | 세계관 톤 | 몰락 후의 고요한 판타지, 환경 서사 | 탐험 동기와 직결 |
 | 가제 | 『Open World』 (임시) | 추후 결정 |
 | 아트 | 로우폴리 + 셀셰이딩, 단색 머티리얼, CC0 에셋 | 에셋 병목 최소화 |
-| 엔진/언어 | Godot 4 (Mobile 렌더러), GDScript | 태블릿 개발 환경 (10장) |
+| 엔진/언어 | Godot 4 (Compatibility 렌더러), GDScript | 태블릿 개발 환경 (10장) |
 | 개발 체제 | 기획·플레이테스트: 사용자 / 구현: Claude 주도 | 입문자, 주 몇 시간 |
 | 시점 | 3인칭 | 확정 |
 | 전투 | **비중 높음.** 패링 + 무기 다양성 | 확정 — 상세는 전투 설계 문서에서 |
@@ -226,13 +226,14 @@
 - Godot 공식 문서도 안드로이드 에디터의 Git 연동 수단으로 Termux를 권장한다.
 - 텍스트 기반 씬(`.tscn`)·리소스(`.tres`) 사용 → Git 충돌 해결 가능하게 유지.
 
-### 10.2 렌더링 결정 (중요) — 개정 2026-10-11
-- **Forward+ 렌더러 채택.** 처음에는 안드로이드 에디터의 Forward+ 성능 우려로 Mobile을 골랐으나, Galaxy Tab S11 Ultra 실측(첫 섬, SSAO·SSIL·볼류메트릭 안개·글로우 켬, 해상도 0.75)에서 **평균 48~78 FPS** → 하한 45를 넘어 채택 (`docs/perf/forward-plus-test.md`).
-- 사용 가능: SSAO·SSIL(틈새 그림자·반사광), 볼류메트릭 안개, 글로우, 반사 프로브, 라이트맵, TAA. 두 데모(Desert Light·Abandoned Spaceship)의 핵심 기법을 대부분 쓸 수 있다.
-- 주의: SDFGI·VoxelGI는 실측 전까지 보류 (부담이 가장 큼). 효과를 추가할 때마다 태블릿 FPS를 다시 잰다.
+### 10.2 렌더링 결정 (중요) — 개정 2026-10-11 (2차)
+- **Compatibility 렌더러(gl_compatibility) 채택.** 목표 플랫폼에 **웹(태블릿 Chrome·PC 브라우저)**이 추가되었고, Godot 4의 웹 내보내기는 Compatibility만 지원한다. 개발·실행은 지금처럼 태블릿 Godot 에디터, 웹은 내보내기로 추가.
+- 새 그래픽 스타일(색면·안개·절제된 조명, `docs/superpowers/specs/2026-10-11-stylized-graphics-design.md`)은 SSAO·SSIL·볼류메트릭 안개 없이도 성립 — 틈새 그늘은 정점색, 물가는 미리 계산한 깊이로 대체.
+- 이전 결정(Forward+, 태블릿 48~78 FPS)은 `docs/perf/forward-plus-test.md`에 기록으로 남김.
 
 ### 10.3 성능 목표 (Galaxy Tab S11 Ultra)
-- 기준: **Forward+, 60 FPS 목표 / 45 FPS 하한**, 3D 해상도 스케일 0.75부터 시작해 실측 후 조정.
+- 기준: **Compatibility, 60 FPS 목표 / 45 FPS 하한**. 웹(Chrome)도 같은 목표, 실측 후 조정.
+- 장면 예산(설계서 기준): 그리기 호출 < 150, 삼각형 < 30만.
 - 근거: 패링은 프레임 타이밍에 민감 → 전투 판정은 `_physics_process`(고정 틱)에서 처리해 렌더 FPS 변동과 분리.
 
 ---
