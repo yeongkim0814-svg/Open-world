@@ -5,7 +5,7 @@ extends RefCounted
 ## R = 명도(0.8~1.0, 셰이더가 ×1.1 → 0.88~1.1), G = 바람 가중(높이 비율, 뿌리 0), B = 꽃 표시(1 = 꽃 정점), A = AO(뿌리 0.5).
 ## 단위 m, 원점 = 뿌리 중심.
 
-enum Kind { TUFT, BROAD, FLOWER }
+enum Kind { TUFT, BROAD, FLOWER, LOW }
 
 const TIP_RATIO_MIN := 0.6   ## 잎 끝 폭 / 뿌리 폭 하한 (뾰족함 방지)
 
@@ -24,6 +24,9 @@ static func build(kind: int) -> ArrayMesh:
 			top = _leaves(k, rng, 3, 0.10, 0.06, 0.2, 0.10, 1.05, 0.2)
 			_flower(k, 0.4)
 			top = 0.4
+		Kind.LOW:
+			# 낮고 넓게 퍼진 잎 7장 (높이 0.10~0.14, 바깥으로 크게 기울임)
+			top = _leaves(k, rng, 7, 0.10, 0.05, 0.12, 0.13, 1.0, 0.4)
 	_apply_weights(k, top)
 	return k.commit()
 
