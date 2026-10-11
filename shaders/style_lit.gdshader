@@ -27,7 +27,9 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = style_color(color_depleted, color_restored, v_r, v_world, noise_amount) * COLOR.rgb;
+	// 구름(wobble > 0)은 정점색 G = 흔들림 가중이라 색에는 R(명도)만 쓴다.
+	vec3 vc = wobble > 0.0 ? vec3(COLOR.r) : COLOR.rgb;
+	ALBEDO = style_color(color_depleted, color_restored, v_r, v_world, noise_amount) * vc;
 	AO = COLOR.a;
 	AO_LIGHT_AFFECT = 0.6;
 	ROUGHNESS = roughness;

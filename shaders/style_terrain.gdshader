@@ -37,7 +37,7 @@ void fragment() {
 	float n = big_noise(v_world.xz * 0.045 + 5.3);
 	// 흙 얼룩 + 완만→가파른 경사 사이 흙 띠
 	float g = smoothstep(ground_patch, ground_patch + 0.06, n);
-	g = max(g, smoothstep(cliff_slope + 0.18, cliff_slope + 0.06, v_wn.y));
+	g = max(g, smoothstep(cliff_slope + 0.10, cliff_slope + 0.04, v_wn.y));
 	vec3 c = mix(grass, ground, g);
 	c = mix(c, sand, smoothstep(sand_height + 0.4, sand_height - 0.2, v_world.y));
 	c = mix(c, rock, smoothstep(cliff_slope + 0.03, cliff_slope - 0.03, v_wn.y));

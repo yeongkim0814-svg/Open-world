@@ -12,10 +12,11 @@ const SCENES := {
 		"plateau": [Vector3(-132, 23, -30), Vector3(-40, 15, -10)],
 	},
 	"style_test": {
-		"near": [Vector3(6, 4, 30), Vector3(0, 3, 10)],
-		"mid": [Vector3(30, 14, 50), Vector3(0, 4, 0)],
-		"far": [Vector3(70, 40, 90), Vector3(0, 0, 0)],
-		"ruin": [Vector3(-14, 5, 8), Vector3(-24, 4, -6)],
+		# 높이 = 지면 위 m (장면에 field가 있으면 지면 높이를 더한다)
+		"near": [Vector3(6, 2.0, 30), Vector3(0, 1.5, 10)],
+		"mid": [Vector3(34, 16, 46), Vector3(0, 0, 0)],
+		"far": [Vector3(120, 50, 140), Vector3(0, 0, 0)],
+		"ruin": [Vector3(-12, 2.5, 10), Vector3(-24, 2.0, -4)],
 	},
 }
 const SETTLE_FRAMES := 45
@@ -69,8 +70,14 @@ func _process(_dt: float) -> bool:
 		if cam == null:
 			cam = Camera3D.new(); cam.fov = 70.0; cam.far = 4000.0; s.add_child(cam); cam.make_current()
 		var v = SCENES[scene_name][cur[0]]
-		cam.global_position = v[0]
-		cam.look_at(v[1], Vector3.UP)
+		var pos: Vector3 = v[0]
+		var at: Vector3 = v[1]
+		var f = s.get("field")
+		if f != null:
+			pos.y += maxf(f.height_at(pos.x, pos.z), 0.0)
+			at.y += maxf(f.height_at(at.x, at.z), 0.0)
+		cam.global_position = pos
+		cam.look_at(at, Vector3.UP)
 		_set_recovery(mode_value(cur[1]))
 	elif frame % SETTLE_FRAMES == 0:
 		var path := "/tmp/claude-0/shots/%s_%s_%s.png" % [tag, cur[0], cur[1]]

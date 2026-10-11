@@ -23,6 +23,7 @@ var _stats: Label
 var _rng := RandomNumberGenerator.new()
 var _noise := FastNoiseLite.new()
 var _stat_t := 0.0
+var _life_n := -1
 
 
 func _ready() -> void:
@@ -50,10 +51,15 @@ func _ready() -> void:
 func _process(dt: float) -> void:
 	var r := _here()
 	_env.fog_light_color = StylePalette.color("sky_horizon", r)
-	_env.fog_density = lerpf(0.004, 0.0022, r)
+	_env.fog_density = lerpf(0.0016, 0.0009, r)
 	_sun.light_color = Color(0.86, 0.89, 0.93).lerp(Color(1.0, 0.95, 0.85), r)
 	_sun.light_energy = lerpf(0.9, 1.15, r)
-	_life.amount_ratio = 0.0 if r < 0.3 else r
+	var want := 0 if r < 0.3 else maxi(1, int(LIFE_MAX * r / 5.0) * 5)   # 5개 단위 (amount 변경은 재시작이라 자주 바꾸지 않음)
+	if want != _life_n:
+		_life_n = want
+		_life.emitting = want > 0
+		if want > 0:
+			_life.amount = want
 	_stat_t -= dt
 	if _stat_t <= 0.0 and _stats:
 		_stat_t = 0.5
@@ -137,6 +143,7 @@ func _build_terrain() -> void:
 	for k in ["grass", "ground", "rock", "sand"]:
 		_terrain_mat.set_shader_parameter(k + "_depleted", StylePalette.DEPLETED[k])
 		_terrain_mat.set_shader_parameter(k + "_restored", StylePalette.RESTORED[k])
+	_terrain_mat.set_shader_parameter("flat_shading", true)
 	mi.material_override = _terrain_mat
 	add_child(mi)
 	var body := StaticBody3D.new()
@@ -185,7 +192,7 @@ func _build_water() -> void:
 	add_child(pond)
 	var sea := MeshInstance3D.new()
 	sea.name = "Sea"
-	sea.mesh = _water_grid(Vector2.ZERO, 768.0, 12.0, SEA_LEVEL, 4.0)
+	sea.mesh = _water_grid(Vector2.ZERO, 2400.0, 40.0, SEA_LEVEL, 2.5)
 	sea.material_override = mat
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(sea)
@@ -312,7 +319,7 @@ func _build_grass() -> void:
 		m.surface_set_material(0, mat)
 		meshes.append(m)
 	var groups := [[], [], []]
-	var step := 0.8
+	var step := 0.7
 	var z := -50.0
 	while z < 50.0:
 		var x := -50.0
@@ -322,7 +329,7 @@ func _build_grass() -> void:
 			var n := _noise.get_noise_2d(px * 1.7, pz * 1.7)
 			if n > -0.15 and _land_ok(px, pz, 0.8):
 				var kind := 2 if _rng.randf() < 0.08 else (1 if n > 0.25 else 0)
-				groups[kind].append(_xf(_ground(px, pz), _rng.randf_range(0.7, 1.3)))
+				groups[kind].append(_xf(_ground(px, pz), _rng.randf_range(1.2, 2.0)))
 			x += step
 		z += step
 	for k in 3:
@@ -384,10 +391,10 @@ func _build_clouds() -> void:
 		mi.mesh = m
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var a := TAU * i / 12.0 + _rng.randf_range(-0.2, 0.2)
-		var d := _rng.randf_range(260.0, 520.0) if i > 1 else _rng.randf_range(60.0, 90.0)
-		var s := _rng.randf_range(22.0, 48.0) if i > 1 else 14.0
+		var d := _rng.randf_range(300.0, 600.0)
+		var s := _rng.randf_range(14.0, 30.0)
 		mi.transform = Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(s, s * 0.6, s)),
-			Vector3(cos(a) * d, _rng.randf_range(55.0, 110.0), sin(a) * d))
+			Vector3(cos(a) * d, _rng.randf_range(70.0, 140.0), sin(a) * d))
 		add_child(mi)
 
 
@@ -410,10 +417,14 @@ func _build_ridges() -> void:
 			var b1 := Vector3(cos(a1), 0, sin(a1)) * rad + Vector3.DOWN * 20.0
 			var t0 := Vector3(cos(a0) * rad * 1.02, h0, sin(a0) * rad * 1.02)
 			var t1 := Vector3(cos(a1) * rad * 1.02, h1, sin(a1) * rad * 1.02)
-			kit.add_quad(b0, t0, t1, b1, Color(1.0 - layer * 0.08, 1, 1, 1))
+			kit.add_quad(b0, b1, t1, t0, Color(1.0 - layer * 0.08, 1, 1, 1))   # 섬 안쪽을 향하게
 	var mi := MeshInstance3D.new()
 	mi.mesh = kit.commit()
-	mi.material_override = _lit("rock", 1.25)
+	var m := _lit("rock")
+	m.set_shader_parameter("color_depleted", Color("#6F7C86"))   # 먼 산은 푸른 회색 색면 (안개가 하늘색으로 녹인다)
+	m.set_shader_parameter("color_restored", Color("#5E7D99"))
+	m.set_shader_parameter("noise_amount", 0.0)
+	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
@@ -468,6 +479,7 @@ func _build_panel() -> void:
 	box.add_child(slider)
 	var flat := CheckButton.new()
 	flat.text = "지형 평면 음영"
+	flat.button_pressed = true
 	flat.toggled.connect(func(on): _terrain_mat.set_shader_parameter("flat_shading", on))
 	box.add_child(flat)
 	var fog := CheckButton.new()

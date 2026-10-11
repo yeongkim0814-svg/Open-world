@@ -20,7 +20,7 @@ void sky() {
 	if (EYEDIR.y < 0.0) {
 		c = hor;
 	}
-	if (LIGHT0_ENABLED) {
+	if (LIGHT0_ENABLED && !AT_CUBEMAP_PASS) {   // 해 원반은 화면에만 (환경광을 부풀리지 않게)
 		float d = dot(EYEDIR, LIGHT0_DIRECTION);
 		float disk = smoothstep(cos(sun_size), cos(sun_size * 0.8), d);
 		float halo = pow(max(d, 0.0), 64.0) * sun_halo;
