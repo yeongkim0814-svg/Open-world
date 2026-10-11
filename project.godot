@@ -26,6 +26,7 @@ common/physics_interpolation=true
 renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="forward_plus"
 scaling_3d/scale=0.75
+textures/vram_compression/import_etc2_astc=true
 
 [shader_globals]
 
