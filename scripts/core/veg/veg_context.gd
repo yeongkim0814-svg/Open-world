@@ -13,7 +13,7 @@ const DIRS := [
 	Vector2(0.7071068, 0.7071068), Vector2(-0.7071068, 0.7071068),
 	Vector2(0.7071068, -0.7071068), Vector2(-0.7071068, -0.7071068),
 ]
-# 표식 종류별 (제외 반경, 풀·덤불도 제외하는가)
+# 표식 종류별 제외 반경 (m) — 모든 층 제외
 const MARKER_R := {"village": 45.0, "sluice": 15.0, "bridge": 10.0, "lookout": 15.0, "ruin": 12.0, "start": 8.0}
 const HILL_VILLAGE_R := 35.0
 const LAKE_BANK := 12.0
@@ -25,8 +25,8 @@ var _paths: Image
 var _cfg: Dictionary
 var _water: Callable
 var _world: float
-# 사전 계산한 표식: {x, z, r2, all (모든 층 제외), solid (나무·바위 제외)}
-var _zones_ex: Array = []
+# 사전 계산한 표식: {x, z, r2, min_layer (이 층 이상만 제외)}
+var _marker_ex: Array = []
 var _peaks: Array = []
 var _summit_r: float
 
@@ -49,17 +49,17 @@ func _add_marker(m: Dictionary) -> void:
 	if kind == "peak":
 		_peaks.append(Vector2(x, z))
 	elif kind == "hill_village":
-		_zones_ex.append({"x": x, "z": z, "r2": HILL_VILLAGE_R * HILL_VILLAGE_R, "all": false})
+		_marker_ex.append({"x": x, "z": z, "r2": HILL_VILLAGE_R * HILL_VILLAGE_R, "min_layer": Layer.TREE})
 	elif kind == "tower":
 		var r := float(_cfg.get("tower_radius", 0.0)) + TOWER_PAD
-		_zones_ex.append({"x": x, "z": z, "r2": r * r, "all": true})
+		_marker_ex.append({"x": x, "z": z, "r2": r * r, "min_layer": Layer.GRASS})
 	elif kind == "lake":
-		# 둑 위 풀은 허용(물 판정이 거른다) — 덤불·나무·바위만 반경 + 둑 안에서 제외
+		# 둑 위 풀은 허용(물 판정이 거른다) — 덤불 이상 층만 반경 + 둑 안에서 제외
 		var r := float(m.get("radius", _cfg.get("lake_radius", 0.0))) + LAKE_BANK
-		_zones_ex.append({"x": x, "z": z, "r2": r * r, "all": false})
+		_marker_ex.append({"x": x, "z": z, "r2": r * r, "min_layer": Layer.SHRUB})
 	elif MARKER_R.has(kind):
 		var r2: float = MARKER_R[kind]
-		_zones_ex.append({"x": x, "z": z, "r2": r2 * r2, "all": true})
+		_marker_ex.append({"x": x, "z": z, "r2": r2 * r2, "min_layer": Layer.GRASS})
 
 
 func zone_at(x: float, z: float) -> int:
@@ -78,7 +78,7 @@ func edge_dist_zone(x: float, z: float, max_m := 20.0) -> float:
 	return max_m
 
 
-## 반경 r 안 (중심 + 8방향) 가장 우선인 길 종류. 개천 4 > 수로 3 > 포장 2 > 흙 1, 없음 0
+## 반경 r 안 (중심 + 8방향 두 고리) 가장 우선인 길 종류. 개천 4 > 수로 3 > 포장 2 > 흙 1, 없음 0
 func path_near(x: float, z: float, r: float) -> int:
 	return _best_path(_path_kinds(x, z, r))
 
@@ -88,6 +88,19 @@ func slope_ny(x: float, z: float) -> float:
 
 
 func excluded(layer: int, x: float, z: float) -> bool:
+	var g := field.height_at(x, z)
+	if g < MIN_HEIGHT:
+		return true
+	if _water.is_valid() and float(_water.call(x, z)) > g:
+		return true
+	var p := Vector2(x, z)
+	for m in _marker_ex:
+		if layer >= m["min_layer"] and p.distance_squared_to(Vector2(m["x"], m["z"])) < m["r2"]:
+			return true
+	if layer == Layer.TREE:
+		for pk in _peaks:
+			if p.distance_to(pk) < _summit_r:
+				return true
 	# 길: 종류마다 제외 반경이 다르다
 	if _path_kinds(x, z, 1.5) & 0b00110:
 		return true
@@ -95,20 +108,6 @@ func excluded(layer: int, x: float, z: float) -> bool:
 		return true
 	if _path_kinds(x, z, 3.0) & 0b10000:
 		return true
-	var g := field.height_at(x, z)
-	if g < MIN_HEIGHT:
-		return true
-	if _water.is_valid() and float(_water.call(x, z)) > g:
-		return true
-	var solid := layer == Layer.TREE or layer == Layer.ROCK
-	var p := Vector2(x, z)
-	for m in _zones_ex:
-		if (m["all"] or solid) and p.distance_squared_to(Vector2(m["x"], m["z"])) < m["r2"]:
-			return true
-	if layer == Layer.TREE:
-		for pk in _peaks:
-			if p.distance_to(pk) < _summit_r:
-				return true
 	return false
 
 
@@ -121,16 +120,17 @@ func ground_y(x: float, z: float, foot := 0.0) -> float:
 		minf(field.height_at(x - foot, z + foot), field.height_at(x + foot, z + foot)))
 
 
-# 반경 r 안 중심 + 8방향 표본에 나온 길 종류 비트마스크 (비트 k = 종류 k)
+# 반경 r 안 중심 + 8방향 (r/2, r 두 고리) 표본에 나온 길 종류 비트마스크 (비트 k = 종류 k)
 func _path_kinds(x: float, z: float, r: float) -> int:
 	var mask := 0
 	var v := _read(_paths, x, z)
 	if v > 0:
 		mask |= 1 << v
 	for dir in DIRS:
-		v = _read(_paths, x + dir.x * r, z + dir.y * r)
-		if v > 0:
-			mask |= 1 << v
+		for f in [0.5, 1.0]:
+			v = _read(_paths, x + dir.x * r * f, z + dir.y * r * f)
+			if v > 0:
+				mask |= 1 << v
 	return mask
 
 

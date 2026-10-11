@@ -29,10 +29,17 @@ func test_path_priority_and_radii():
 	c = VegContext.new(VegFixture.field(), VegFixture.zones(), p, [], VegFixture.cfg())
 	assert_eq(c.path_near(0.0, -34.0, 1.0), 4)
 
+func test_thin_stream_inner_ring():
+	var p := VegFixture.paths()
+	p.set_pixel(100, 30, Color8(4, 0, 0))   # 개천 1 px: x=36, z=-34
+	var c := VegContext.new(VegFixture.field(), VegFixture.zones(), p, [], VegFixture.cfg())
+	assert_true(c.excluded(VegContext.Layer.GRASS, 36.0, -31.0), "1 px 개천 3 m 옆")
+	assert_true(c.excluded(VegContext.Layer.GRASS, 34.0, -34.0), "1 px 개천 2 m 옆")
+
 func test_marker_exclusion():
 	var c := VegFixture.context()
 	for layer in [VegContext.Layer.GRASS, VegContext.Layer.SHRUB, VegContext.Layer.TREE, VegContext.Layer.ROCK]:
-		assert_true(c.excluded(layer, -40.0 + 40.0 * 0.0, -40.0 + 40.0), "마을 40 m 안 층 %d" % layer)
+		assert_true(c.excluded(layer, -40.0, 0.0), "마을 40 m 안 층 %d" % layer)
 		assert_true(c.excluded(layer, 40.0, -40.0 + 14.0), "탑 14 m 안 층 %d" % layer)
 	assert_true(c.excluded(VegContext.Layer.TREE, -15.0, 45.0), "산마을 30 m 나무")
 	assert_true(c.excluded(VegContext.Layer.ROCK, -15.0, 45.0), "산마을 30 m 바위")
@@ -44,6 +51,7 @@ func test_lake_marker():
 	var c := VegContext.new(VegFixture.field(), VegFixture.zones(), VegFixture.paths(), mk, VegFixture.cfg())
 	assert_true(c.excluded(VegContext.Layer.TREE, 20.0 + 20.0, 0.0), "반경 10 + 둑 12 안 나무")
 	assert_false(c.excluded(VegContext.Layer.TREE, 20.0 + 25.0, 0.0), "밖")
+	assert_true(c.excluded(VegContext.Layer.SHRUB, 20.0 + 15.0, 0.0), "둑 위 덤불 제외")
 	assert_false(c.excluded(VegContext.Layer.GRASS, 20.0 + 15.0, 0.0), "둑 위 풀 허용")
 
 func test_water_and_sea():
