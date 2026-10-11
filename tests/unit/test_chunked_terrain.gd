@@ -313,3 +313,178 @@ func _edge_point(o: Vector2, e: int, s: float) -> Vector2:
 		1: return o + Vector2(s, 64)
 		2: return o + Vector2(0, s)
 		_: return o + Vector2(64, s)
+
+
+# --- A2: 2km 지도 · 먼 256m 묶음 -----------------------------------------------
+
+const BIG := 2048.0
+
+
+## 2048m 합성 언덕 지도 (513² 이미지 = 4m 칸). 서쪽 가장자리 띠는 깊은 바다.
+func _field_2k() -> HeightField:
+	var n := 513
+	var data := PackedByteArray()
+	data.resize(n * n * 3)
+	for pz in n:
+		for px in n:
+			var h := 25.0 + 14.0 * sin(px * 0.05) + 11.0 * cos(pz * 0.04) + 6.0 * sin((px + pz) * 0.13)
+			if px < 100:
+				h = -12.0
+			var t := (h - MIN_H) / (MAX_H - MIN_H) * 255.0
+			var r := int(floor(t))
+			var i := (pz * n + px) * 3
+			data[i] = r
+			data[i + 1] = mini(int((t - r) * 256.0), 255)
+	return HeightField.new(Image.create_from_data(n, n, false, Image.FORMAT_RGB8, data), BIG, MIN_H, MAX_H)
+
+
+func _converge(t: ChunkedTerrain, cam: Vector3, limit := 20000) -> int:
+	var frames := 0
+	while frames == 0 or t.stats()["pending"] > 0:
+		t.step(cam, 50.0)
+		frames += 1
+		if frames > limit:
+			break
+	return frames
+
+
+func _mesh_nodes(t: ChunkedTerrain) -> int:
+	var c := 0
+	for ch in t.get_children():
+		if ch is MeshInstance3D:
+			c += 1
+	return c
+
+
+func test_far_blocks_reduce_nodes():
+	var t := _terrain(_field_2k())
+	_converge(t, Vector3(1000, 0, 1000))
+	var st := t.stats()
+	assert_true(st["blocks"] > 30, "먼 묶음이 많다: %d" % st["blocks"])
+	assert_true(_mesh_nodes(t) < 300, "메시 노드 %d < 300" % _mesh_nodes(t))
+	assert_eq(_mesh_nodes(t), st["chunks"] + st["blocks"])
+	t.free()
+
+
+## 묶음이 다 덮은 구역엔 개별 구역 노드가 없고, 카메라 주변은 개별로 남는다.
+func test_block_replaces_its_chunks():
+	var t := _terrain(_field_2k())
+	_converge(t, Vector3(1000, 0, 1000))
+	assert_true(t.block_keys().size() > 0)
+	for b: Vector2i in t.block_keys():
+		for dz in 4:
+			for dx in 4:
+				assert_false(t.has_chunk(Vector2i(b.x * 4 + dx, b.y * 4 + dz)), "묶음 %s 안 구역은 없음" % b)
+	assert_true(t.has_chunk(Vector2i(31, 31)), "카메라 구역은 개별")
+	assert_false(t.has_block(Vector2i(7, 7)), "카메라 옆 묶음 없음")
+	t.free()
+
+
+## 모든 육지 구역은 개별 노드 또는 묶음 노드로 덮여 있다 (묶음 ↔ 구역 전환 중에도 구멍 없음).
+func _holes(t: ChunkedTerrain, n: int, skip: Dictionary) -> int:
+	var holes := 0
+	for iz in n:
+		for ix in n:
+			var k := Vector2i(ix, iz)
+			if skip.has(k):
+				continue
+			var inst := t.chunk_node(k)
+			var covered := inst != null and inst.visible
+			var b := t.block_node(Vector2i(ix / 4, iz / 4))
+			if b != null and b.visible:
+				covered = true
+			if not covered:
+				holes += 1
+	return holes
+
+
+func test_block_transitions_leave_no_holes():
+	var f := _field_2k()
+	var t := _terrain(f)
+	var skip := ChunkedTerrain._underwater_chunks(f)
+	_converge(t, Vector3(1000, 0, 1000))
+	assert_eq(_holes(t, 32, skip), 0, "수렴 후")
+	# 카메라를 멀리 옮겨 묶음 ↔ 구역 전환을 프레임 단위(예산 0)로 지켜본다
+	var worst := 0
+	for path in [Vector3(-200, 0, -200), Vector3(700, 0, 300)]:
+		var guard := 0
+		t.step(path, 0.0)
+		while t.stats()["pending"] > 0 and guard < 20000:
+			worst = maxi(worst, _holes(t, 32, skip))
+			t.step(path, 0.0)
+			guard += 1
+		assert_eq(_holes(t, 32, skip), 0, "수렴 후 %s" % path)
+	assert_eq(worst, 0, "전환 중 구멍 수")
+	t.free()
+
+
+## 묶음(16m)과 이웃 64m 구역(4m) 경계: 두 메시 테두리의 높이 차를 양쪽 치마 중 낮은 쪽이 덮는다.
+func test_block_and_chunk_seam_covered():
+	var f := _field_2k()
+	var bo := Vector2(0, 0)                                  # 묶음 원점 (256m)
+	var b_skirt := ChunkMesh.skirt_for(f, bo, 256.0)
+	var c_skirt := ChunkMesh.skirt_for(f, Vector2(-64, 0), 64.0)
+	var blk := _arrays(ChunkMesh.build(f, bo, 256.0, 16.0, b_skirt))
+	var chk := _arrays(ChunkMesh.build(f, Vector2(-64, 0), 64.0, 4.0, c_skirt))   # 묶음 서쪽 이웃
+	var vb: PackedVector3Array = blk[Mesh.ARRAY_VERTEX]
+	var vc: PackedVector3Array = chk[Mesh.ARRAY_VERTEX]
+	var nb := 17
+	var nc := 17
+	assert_true(b_skirt >= 6.0 and c_skirt >= 6.0)
+	var worst := 0.0
+	for iz in range(0, 17):                                  # 이웃 구역 동쪽 테두리 x=0 (z 0..64)
+		var zc := vc[iz * nc + (nc - 1)].z
+		var hc := vc[iz * nc + (nc - 1)].y
+		var zb := zc / 16.0
+		var j := mini(int(floor(zb)), nb - 2)
+		var hb := lerpf(vb[j * nb].y, vb[(j + 1) * nb].y, zb - j)   # 묶음 서쪽 테두리 (열 0)
+		var diff := hc - hb
+		worst = maxf(worst, absf(diff))
+		if diff > 0.0:
+			assert_true(diff <= b_skirt, "구역이 높음: 묶음 치마 %.2f ≥ 차 %.2f" % [b_skirt, diff])
+		else:
+			assert_true(-diff <= c_skirt, "묶음이 높음: 구역 치마 %.2f ≥ 차 %.2f" % [c_skirt, -diff])
+	assert_true(worst > 0.0, "높이 차가 있어야 의미 있음")
+	assert_eq(vb.size(), 17 * 17 + 4 * 16)
+
+
+## 바다만 있는 묶음은 만들지 않는다.
+func test_underwater_block_skipped():
+	var t := _terrain(_field_2k())
+	_converge(t, Vector3(1000, 0, 1000))
+	assert_false(t.has_block(Vector2i(0, 3)), "서쪽 가장자리(깊은 바다) 묶음 생략")
+	assert_false(t.has_chunk(Vector2i(0, 12)))
+	t.free()
+
+
+func test_meta_json_honoured():
+	var dir := "user://_test_meta_%d" % Time.get_ticks_usec()
+	DirAccess.make_dir_recursive_absolute(dir)
+	var n := 129
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	img.fill(Color8(128, 0, 0))
+	img.save_png(dir.path_join("height.png"))
+	var fa := FileAccess.open(dir.path_join("meta.json"), FileAccess.WRITE)
+	fa.store_string(JSON.stringify({"world": 512, "size": 129, "min_h": -20.0, "max_h": 200.0}))
+	fa.close()
+	var t := ChunkedTerrain.new()
+	t.baked_dir = dir
+	t.load_map()
+	assert_true(t.field != null)
+	assert_eq(t.field.world_size, 512.0)
+	assert_almost(t.field.height_at(0, 0), -20.0 + 128.0 / 255.0 * 220.0, 0.5)
+	_converge(t, Vector3.ZERO)
+	assert_eq(t.stats()["chunks"], 64, "512m = 8×8 구역 (카메라 중앙 → 전부 개별)")
+	t.step(Vector3(0, 0, 0), 50.0)
+	assert_eq(t.collision_shapes().size(), 9)
+	t.free()
+	# meta 없음 → 1024 / −16 / 90
+	var dir2 := "user://_test_nometa_%d" % Time.get_ticks_usec()
+	DirAccess.make_dir_recursive_absolute(dir2)
+	img.save_png(dir2.path_join("height.png"))
+	var t2 := ChunkedTerrain.new()
+	t2.baked_dir = dir2
+	t2.load_map()
+	assert_eq(t2.field.world_size, 1024.0)
+	assert_almost(t2.field.height_at(0, 0), -16.0 + 128.0 / 255.0 * 106.0, 0.5)
+	t2.free()
