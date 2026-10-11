@@ -410,6 +410,7 @@ script = ExtResource("hud")
 player = NodePath("../../Player")
 
 [node name="GrassField" parent="." instance=ExtResource("grass_field")]
+terrain = NodePath("../Terrain")
 
 [node name="RockScatter" parent="." instance=ExtResource("rocks")]
 terrain = NodePath("../Terrain")
