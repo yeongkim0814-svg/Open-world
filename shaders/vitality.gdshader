@@ -2,8 +2,7 @@
 // 탑에서 vitality_radius 안쪽 = 원래 색(회복), 바깥 = 바랜 잿빛(채도 15% + 푸른 기). 경계 10m.
 shader_type spatial;
 
-global uniform vec3 vitality_center;
-global uniform float vitality_radius;
+#include "res://shaders/vitality.gdshaderinc"
 
 uniform vec4 albedo : source_color = vec4(1.0);
 uniform bool use_vertex_color = false;
@@ -22,10 +21,6 @@ void fragment() {
 	if (use_vertex_color) {
 		c *= COLOR.rgb;
 	}
-	float lum = dot(c, vec3(0.299, 0.587, 0.114));
-	vec3 grey = mix(vec3(lum), c, 0.15) * vec3(0.95, 0.98, 1.05);
-	float d = distance(world_pos.xz, vitality_center.xz);
-	float t = keep_color ? 1.0 : 1.0 - smoothstep(vitality_radius - edge, vitality_radius, d);
-	ALBEDO = mix(grey, c, t);
+	ALBEDO = keep_color ? c : vitality_mix(c, world_pos, edge);
 	ROUGHNESS = roughness_value;
 }

@@ -37,3 +37,7 @@ vitality_radius={
 "type": "float",
 "value": 0.0
 }
+vitality_global={
+"type": "float",
+"value": 0.0
+}
