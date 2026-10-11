@@ -286,3 +286,30 @@ func test_underwater_chunks_skipped():
 	assert_false(t.has_chunk(Vector2i(3, 3)), "깊은 바다 구역은 건너뛴다")
 	assert_true(t.stats()["chunks"] < 16)
 	t.free()
+
+## 최종 리뷰: 실제 구운 지도에서 LOD 이웃 경계 높이 차가 치마 깊이를 넘음(최대 16.7m) → 구역마다 측정한 치마.
+## 모든 구역 가장자리에서 1m 높이와 가장 거친(16m) 보간의 차 ≤ 그 구역 치마여야 어떤 이웃 조합에도 틈이 없다.
+func test_measured_skirt_covers_baked_map():
+	var img := load("res://maps/first_island/baked/height.png") as Image
+	var f := HeightField.new(img, 1024.0, -16.0, 90.0)
+	var n := TerrainLod.chunks_per_side(1024.0)
+	for iz in range(0, n, 3):
+		for ix in range(0, n, 3):
+			var o := Vector2(-512.0 + ix * 64.0, -512.0 + iz * 64.0)
+			var skirt := ChunkMesh.skirt_for(f, o, 64.0)
+			for e in 4:
+				for k in 65:
+					var p := _edge_point(o, e, float(k))
+					var a := _edge_point(o, e, floor(k / 16.0) * 16.0)
+					var b := _edge_point(o, e, minf(floor(k / 16.0) * 16.0 + 16.0, 64.0))
+					var t := fposmod(float(k), 16.0) / 16.0 if k < 64 else 1.0
+					var coarse := lerpf(f.height_at(a.x, a.y), f.height_at(b.x, b.y), t)
+					assert_true(absf(f.height_at(p.x, p.y) - coarse) <= skirt, "구역 %s 가장자리 %d 틈" % [Vector2i(ix, iz), e])
+
+
+func _edge_point(o: Vector2, e: int, s: float) -> Vector2:
+	match e:
+		0: return o + Vector2(s, 0)
+		1: return o + Vector2(s, 64)
+		2: return o + Vector2(0, s)
+		_: return o + Vector2(64, s)

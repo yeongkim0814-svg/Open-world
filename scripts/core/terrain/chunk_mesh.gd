@@ -21,6 +21,33 @@ static func build(field: HeightField, origin: Vector2, size: float, step: float,
 
 
 ## build() 가 만드는 삼각형 수 (격자 + 치마).
+## 이 구역 가장자리(1m 표본)와 가장 거친 간격(16m) 보간의 최대 높이 차 + 여유 2m (최소 6m).
+## 이웃이 어떤 LOD든 경계 틈을 이 깊이의 치마가 가린다 (구운 실제 지도에서 측정한 틈 최대 16.7m).
+static func skirt_for(field: HeightField, origin: Vector2, size: float, coarse := 16.0) -> float:
+	var worst := 0.0
+	var n := int(size)
+	for e in 4:
+		for k in n + 1:
+			var s := float(k)
+			var s0: float = floor(s / coarse) * coarse
+			var s1 := minf(s0 + coarse, size)
+			var t: float = 0.0 if s1 == s0 else (s - s0) / (s1 - s0)
+			var p := _edge(origin, size, e, s)
+			var a := _edge(origin, size, e, s0)
+			var b := _edge(origin, size, e, s1)
+			var coarse_h := lerpf(field.height_at(a.x, a.y), field.height_at(b.x, b.y), t)
+			worst = maxf(worst, absf(field.height_at(p.x, p.y) - coarse_h))
+	return maxf(6.0, worst + 2.0)
+
+
+static func _edge(o: Vector2, size: float, e: int, s: float) -> Vector2:
+	match e:
+		0: return o + Vector2(s, 0.0)
+		1: return o + Vector2(s, size)
+		2: return o + Vector2(0.0, s)
+		_: return o + Vector2(size, s)
+
+
 static func triangle_count(size: float, step: float) -> int:
 	var n := int(round(size / step)) + 1
 	return 2 * (n - 1) * (n - 1) + 8 * (n - 1)

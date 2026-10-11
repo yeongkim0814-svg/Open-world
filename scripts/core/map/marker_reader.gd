@@ -83,6 +83,9 @@ static func validate(markers: Array) -> PackedStringArray:
 	for kind in REQUIRED:
 		if int(counts.get(kind, 0)) == 0:
 			out.append("표식 없음: %s (%s)" % [kind, "#" + MapLegend.MARKERS[kind].to_html(false).to_upper()])
+	for kind in REQUIRED:
+		if int(counts.get(kind, 0)) > 1:
+			out.append("%s%s 표식 %d개 — 첫 번째만 사용합니다" % [WARNING_PREFIX, kind, counts[kind]])
 	if int(counts.get("sluice", 0)) > MAX_SLUICES:
 		out.append("%s수문 표식 %d개 — 앞의 %d개만 사용합니다" % [WARNING_PREFIX, counts["sluice"], MAX_SLUICES])
 	return out

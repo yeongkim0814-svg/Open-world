@@ -20,6 +20,7 @@ uniform bool use_zone_map = false;
 uniform sampler2D zone_map : filter_nearest, repeat_disable;   // R8 = 구역 번호 (MapLegend.ZONES 순서)
 uniform sampler2D path_map : filter_nearest, repeat_disable;   // R8 = 0 없음, 1 흙길, 2 포장길, 3 수로
 uniform vec4 map_rect = vec4(-512.0, -512.0, 1024.0, 1024.0);
+uniform float map_px = 1024.0;   // 구역·길 지도 한 변 픽셀 수
 uniform vec3 zone_depleted[7] : source_color;
 uniform vec3 zone_restored[7] : source_color;
 uniform vec3 path_depleted[2] : source_color;
@@ -48,7 +49,7 @@ void fragment() {
 	float g = smoothstep(ground_patch, ground_patch + 0.06, n);
 	g = max(g, smoothstep(cliff_slope + 0.06, cliff_slope + 0.02, v_wn.y));
 	if (use_zone_map) {
-		vec2 uv = (v_world.xz - map_rect.xy) / map_rect.zw;
+		vec2 uv = ((v_world.xz - map_rect.xy) / map_rect.zw * (map_px - 1.0) + 0.5) / map_px;   // 굽기 관례: 픽셀 p = p·world/(N−1)
 		int zi = clamp(int(texture(zone_map, uv).r * 255.0 + 0.5), 0, 6);
 		grass = style_color(zone_depleted[zi], zone_restored[zi], r, v_world, noise_amount);
 	}
@@ -56,7 +57,7 @@ void fragment() {
 	c = mix(c, sand, smoothstep(sand_height + 0.4, sand_height - 0.2, v_world.y));
 	c = mix(c, rock, smoothstep(cliff_slope + 0.03, cliff_slope - 0.03, v_wn.y));
 	if (use_zone_map) {
-		vec2 uv = (v_world.xz - map_rect.xy) / map_rect.zw;
+		vec2 uv = ((v_world.xz - map_rect.xy) / map_rect.zw * (map_px - 1.0) + 0.5) / map_px;   // 굽기 관례: 픽셀 p = p·world/(N−1)
 		int pi = int(texture(path_map, uv).r * 255.0 + 0.5);
 		if (pi == 1 || pi == 2) {
 			c = style_color(path_depleted[pi - 1], path_restored[pi - 1], r, v_world, noise_amount * 0.5);

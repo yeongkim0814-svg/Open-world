@@ -204,6 +204,12 @@ func _build_water() -> void:
 	sea.material_override = _water_mat(true)
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(sea)
+	var sea_w := Water.new()   # 바다 수영 판정 (수면 0m)
+	sea_w.name = "SeaWater"
+	sea_w.size = Vector3(1100.0, 40.0, 1100.0)
+	sea_w.position = Vector3(0.0, -20.0, 0.0)
+	add_child(sea_w)
+	_build_world_edge()
 	var lk := _marker("lake")
 	if lk.is_empty():
 		return
@@ -218,6 +224,22 @@ func _build_water() -> void:
 	w.size = Vector3(LAKE_R * 2.0, LAKE_LEVEL + 6.0, LAKE_R * 2.0)
 	w.position = Vector3(c.x, (LAKE_LEVEL - 6.0) * 0.5, c.y)
 	add_child(w)
+
+
+## 지도 가장자리(±500m) 보이지 않는 벽 — 밖에는 지형·충돌이 없다.
+func _build_world_edge() -> void:
+	var body := StaticBody3D.new()
+	body.name = "WorldEdge"
+	for i in 4:
+		var col := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		var along := i < 2
+		box.size = Vector3(1040.0, 400.0, 20.0) if along else Vector3(20.0, 400.0, 1040.0)
+		col.shape = box
+		var sgn := -1.0 if i % 2 == 0 else 1.0
+		col.position = Vector3(0.0, 0.0, sgn * 510.0) if along else Vector3(sgn * 510.0, 0.0, 0.0)
+		body.add_child(col)
+	add_child(body)
 
 
 ## 표식 위치에 색 기둥 (구조물이 들어오기 전 디버그용).

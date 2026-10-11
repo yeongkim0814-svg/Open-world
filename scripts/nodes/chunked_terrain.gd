@@ -34,6 +34,7 @@ var _queue: Array = []            # [priority, key, step] — 우선순위 내�
 var _last_cam := Vector2(INF, INF)
 var _last_build_ms := 0.0
 var _focus: Node3D
+var _skirts := {}                 # Vector2i → 치마 깊이 (측정값)
 var _skip := {}                   # Vector2i → true: 깊은 바다 아래라 그리지 않는 구역 (충돌은 따로 만든다)
 var _body: StaticBody3D
 var _shapes := {}                 # Vector2i → CollisionShape3D
@@ -177,7 +178,7 @@ func _start_next_job() -> void:
 			continue
 		var world := field.world_size
 		var origin := Vector2(-world * 0.5 + key.x * TerrainLod.CHUNK, -world * 0.5 + key.y * TerrainLod.CHUNK)
-		_job = ChunkMesh.Job.new(field, origin, TerrainLod.CHUNK, step_m, maxf(6.0, 2.0 * step_m))   # 1m 구역도 6m: 가파른 곳의 4m 이웃 보간 오차까지 가림
+		_job = ChunkMesh.Job.new(field, origin, TerrainLod.CHUNK, step_m, _skirt(key, origin))
 		_job_key = key
 		_job_step = step_m
 		_job_usec = 0
@@ -292,6 +293,7 @@ func _finish_shape(key: Vector2i, data: PackedFloat32Array, ox: float, oz: float
 
 
 func _clear() -> void:
+	_skirts.clear()
 	for inst: MeshInstance3D in _chunks.values():
 		remove_child(inst)
 		inst.free()
@@ -325,3 +327,10 @@ static func _underwater_chunks(f: HeightField) -> Dictionary:
 			if top < SKIP_BELOW:
 				out[Vector2i(ix, iz)] = true
 	return out
+
+
+## 구역별 치마 깊이 (처음 한 번 측정해 저장 — 가장자리 260점 표본).
+func _skirt(key: Vector2i, origin: Vector2) -> float:
+	if not _skirts.has(key):
+		_skirts[key] = ChunkMesh.skirt_for(field, origin, TerrainLod.CHUNK)
+	return _skirts[key]

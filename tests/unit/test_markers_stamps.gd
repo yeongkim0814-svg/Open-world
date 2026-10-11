@@ -115,3 +115,11 @@ func test_lake_inner_wall_has_sharp_lip():
 	var below := MapStamps.lake_profile(MapStamps.LAKE_WALL_R - 0.5, 5.0)
 	assert_true(top - below >= 5.0, "테두리 바로 아래 0.5m 구간도 가팔라야 함 (차 %.2f)" % (top - below))
 	assert_almost(MapStamps.lake_profile(50.0, 5.0), 16.0, 0.01, "테두리 너머는 평평한 둑 꼭대기")
+
+## 최종 리뷰: 시작·탑·저수호가 두 개 이상이면 경고 (앞의 것을 쓴다)
+func test_duplicate_required_markers_warn():
+	var ms := [{"kind": "start", "x": 0.0, "z": 0.0, "yaw": 0.0}, {"kind": "start", "x": 9.0, "z": 0.0, "yaw": 0.0},
+		{"kind": "tower", "x": 0.0, "z": 0.0, "yaw": 0.0}, {"kind": "lake", "x": 0.0, "z": 0.0, "yaw": 0.0}]
+	var out := MarkerReader.validate(ms)
+	assert_eq(out.size(), 1)
+	assert_true(out[0].begins_with(MarkerReader.WARNING_PREFIX), "오류가 아니라 경고")
