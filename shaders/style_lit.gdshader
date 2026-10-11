@@ -12,11 +12,16 @@ uniform bool flat_shading = false;
 uniform float flat_fade_end = 150.0;
 uniform vec3 emission_color : source_color = vec3(0.0);
 uniform float emission_energy = 0.0;
+uniform float wobble = 0.0;           // 구름: 노이즈 정점 움직임 (정점색 G 가중, 모델 크기 비율)
 
 varying vec3 v_world;
 varying float v_r;
 
 void vertex() {
+	if (wobble > 0.0) {
+		float ph = dot(VERTEX, vec3(3.1, 2.3, 1.7));
+		VERTEX += NORMAL * sin(TIME * 0.35 + ph) * wobble * COLOR.g;
+	}
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_r = recovery_at(v_world);
 }
