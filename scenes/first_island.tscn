@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" path="res://assets/terrain/first_island.png" id="hmap"]
 [ext_resource type="Script" path="res://scripts/nodes/water.gd" id="water"]
 [ext_resource type="Shader" path="res://shaders/vitality.gdshader" id="vshader"]
+[ext_resource type="Shader" path="res://shaders/water.gdshader" id="wshader"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="player"]
 [ext_resource type="PackedScene" path="res://scenes/env/grass_field.tscn" id="grass_field"]
 [ext_resource type="PackedScene" path="res://scenes/touch_controls.tscn" id="touch"]
@@ -20,14 +21,25 @@
 [ext_resource type="PackedScene" path="res://scenes/env/rock_scatter.tscn" id="rocks"]
 
 [sub_resource type="ShaderMaterial" id="SeaMat"]
-shader = ExtResource("vshader")
-shader_parameter/albedo = Color(0.25, 0.65, 0.71, 1)
-shader_parameter/roughness_value = 0.3
+shader = ExtResource("wshader")
+shader_parameter/shallow_color = Color(0.2, 0.6, 0.67, 1)
+shader_parameter/deep_color = Color(0.04, 0.2, 0.38, 1)
+shader_parameter/depth_range = 14.0
+shader_parameter/clear_depth = 2.5
+shader_parameter/min_alpha = 0.5
+shader_parameter/wave_scale = 0.05
+shader_parameter/wave_speed = 0.04
+shader_parameter/wave_strength = 0.5
+shader_parameter/foam_width = 1.2
 
 [sub_resource type="ShaderMaterial" id="LakeMat"]
-shader = ExtResource("vshader")
-shader_parameter/albedo = Color(0.16, 0.42, 0.5, 1)
-shader_parameter/roughness_value = 0.2
+shader = ExtResource("wshader")
+shader_parameter/depth_range = 7.0
+shader_parameter/clear_depth = 1.0
+shader_parameter/wave_scale = 0.2
+shader_parameter/wave_speed = 0.06
+shader_parameter/wave_strength = 0.45
+shader_parameter/foam_width = 0.5
 
 [sub_resource type="CylinderMesh" id="LakeMesh"]
 top_radius = 48.0
