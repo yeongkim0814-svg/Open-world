@@ -1,0 +1,1 @@
+Source: https://github.com/DietrichGebert/ponytail @ 2961b52 (v5.2.0), MIT. Skills only; plugin hooks not installed.
