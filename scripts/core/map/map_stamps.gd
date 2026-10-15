@@ -67,6 +67,10 @@ static func apply(h: PackedFloat32Array, size: int, world: float, markers: Array
 			_stamp_lake(h, size, world, m["x"], m["z"], crest, crest - LAKE_DEPTH, lake_r)
 	for m in markers:
 		if m["kind"] == "tower":
+			for lk in lakes:      # 해자 안의 탑은 해자 한가운데로 (점 두 개는 붙여 찍을 수 없어 조금 떨어져 있다)
+				if Vector2(m["x"] - lk["x"], m["z"] - lk["z"]).length() <= float(lk["radius"]):
+					m["x"] = lk["x"]
+					m["z"] = lk["z"]
 			var top := _tower_top(orig, size, world, m, lakes, tower_r)
 			m["top"] = top
 			_stamp_tower(h, size, world, m["x"], m["z"], top, tower_r)

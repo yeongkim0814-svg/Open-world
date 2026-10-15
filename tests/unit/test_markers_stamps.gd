@@ -109,8 +109,10 @@ func test_tower_island_top():
 	var h := _flat(5.0)
 	var ms := [{"kind": "lake", "x": 0.0, "z": 0.0, "yaw": 0.0}, {"kind": "tower", "x": 10.0, "z": 0.0, "yaw": 0.0}]
 	MapStamps.apply(h, S, W, ms)
-	assert_almost(_at(h, 10, 0), 11.0, 0.05, "탑 윗면 = 꼭대기 + 2")
-	assert_almost(_at(h, 18, 0), 11.0, 0.05, "반경 8 안 윗면")
+	assert_almost(ms[1]["x"], 0.0, 0.01, "해자 안의 탑은 해자 중심으로 옮겨짐")
+	assert_almost(ms[1]["z"], 0.0, 0.01, "해자 안의 탑은 해자 중심으로 옮겨짐")
+	assert_almost(_at(h, 0, 0), 11.0, 0.05, "탑 윗면 = 꼭대기 + 2")
+	assert_almost(_at(h, 8, 0), 11.0, 0.05, "반경 8 안 윗면")
 	assert_almost(_at(h, -30, 0), -13.0, 0.05, "섬 밖은 분지 바닥")
 	assert_almost(ms[1]["top"], 11.0, 0.01, "마커에 top 기록")
 

@@ -5,6 +5,7 @@
  "max_h": 420,
  "smooth_radius": 40,
  "edge_sea": false,
- "lake_radius": 50,
- "tower_radius": 22
+ "lake_radius": 60,
+ "tower_radius": 32,
+ "stream_dig": 6
 }

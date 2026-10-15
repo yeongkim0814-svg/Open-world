@@ -64,19 +64,27 @@ FOREST_DENSITY = 0.008 # 이 밀도 넘으면 숲
 MARKERS = [
     ("start", 873, 1728),
     ("lookout", 158, 1847),        # 전망대 (observatory)
-    ("tower", 652, 782),
-    ("lake", 660, 772),            # 해자 = 저수호 도장 (탑 둘레 고리 물)
+    ("tower", 634, 727),           # 굽기에서 해자 중심으로 옮겨진다
+    ("lake", 629, 721),            # 해자 = 저수호 도장. 정상 평지 한가운데 (그림의 빗금 자리는 동쪽 비탈에 걸려 좁았다)
     ("sluice", 420, 592),
     ("sluice", 790, 922),
     ("sluice", 628, 1297),
     ("hill_village", 805, 995),    # 비탈 마을 (평탄화 없음)
     ("hill_village", 655, 1515),   # 절벽 위 마을 (평탄화하면 절벽이 뭉개짐)
 ]
-# 협곡: 강 중심선 위 (원본 px, 바닥 높이 m) — 수문 → 두 절벽 사이 → 입구 → 북쪽 가장자리 (그 너머 지역으로 흘러감)
-CANYON = [(420, 592, 226), (427, 542, 206), (400, 527, 194), (365, 509, 178), (345, 497, 170), (320, 472, 158),
-          (295, 457, 150), (287, 447, 146), (296, 420, 143), (302, 397, 140), (305, 378, 137)]
-CANYON_HALF_W = 12             # 협곡 바닥 반폭 (px ≈ 16m) — 6px(8m)는 위에서 가는 금으로만 보였다
-CANYON_WALL_PX = 5             # 바닥 → 원지형까지 벽 폭 (px)
+# 협곡: 수문(약 226m) 물이 협곡 머리에서 큰 폭포로 떨어진다 → 폭포 밑 둥근 소(沼) → 거의 평평한 바닥 → 북쪽 가장자리 (그 너머 지역으로).
+# 바닥 중심선 (원본 px, 바닥 높이 m): 머리 146m → 입구 139m → 가장자리 132m (흐를 만큼만 기울기, 약 1.5%)
+CANYON = [(426, 540, 146), (400, 527, 145), (365, 509, 143.5), (345, 497, 142.5), (320, 472, 141), (295, 457, 140),
+          (287, 447, 139), (296, 420, 136), (302, 397, 134), (305, 378, 132)]
+CANYON_HALF_W = 12             # 협곡 바닥 반폭 (px ≈ 16m)
+CANYON_WALL_PX = 5             # 바닥 → 원지형까지 벽 폭 (px) — 벽 높이 50~90m 라 80도 넘음
+FALL_BOWL = (423, 532)         # 폭포 밑 둥근 골 중심 (원본 px). 남쪽 끝(= 폭포 입술)이 수문 물길과 만난다
+FALL_BOWL_R = 20               # 둥근 골 반경 (px ≈ 27m)
+POOL_R = 13                    # 폭포가 판 소 반경 (px ≈ 17m)
+POOL_DEPTH = 14.0              # 소 깊이 (바닥 아래, m) — 개천 파기(6m)가 바닥 전체에 더해지므로 그보다 깊게
+EXTRA_STREAMS = [[(667, 1480), (660, 1510), (651, 1538)]]   # 그림에서 마을 빗금에 가려 끊긴 남쪽 강 (절벽 = 폭포 자리)
+NOT_CLIFF_BOXES = [(595, 700, 710, 860)]   # 절벽색으로 읽히지만 절벽이 아닌 곳 (원본 x0, x1, y0, y1): 정상의 옛 탑 빗금
+RIVER_HALF_PX = 6              # 개천 칠하기 반폭 (원본 px ≈ 8m → 폭 약 17m)
 # 숲 (구역 지도 색 인덱스는 MapLegend.ZONES 순서: 활엽수 숲)
 FOREST_COLOR = (0x54, 0x82, 0x35)
 HIGHLAND_COLOR = (0xA6, 0xA6, 0xA6)
@@ -354,8 +362,15 @@ def main():
     _, (iy, ix) = nd.distance_transform_edt(rr == 0, return_indices=True)
     sea_zone = sea_reg[iy, ix]
     land_all = fill_gaps(np.nan_to_num(h), land)
+    # 절벽: 선 칸을 비탈로 메우지 않고 가장 가까운 영역 높이로 → 선 가운데서 끊긴 계단 (1m 격자에서 80도 넘음)
+    _, (ly, lx) = nd.distance_transform_edt(~land, return_indices=True)
+    cliff_wall = c["cliff"].copy()          # 영역 나누기에는 그대로 쓰고(LEVELS 번호 유지), 벽 만들기에서만 뺀다
+    for x0, x1, y0, y1 in NOT_CLIFF_BOXES:
+        cliff_wall[y0 - FRAME[1]:y1 - FRAME[1], x0 - FRAME[0]:x1 - FRAME[0]] = False
+    cliff_zone = nd.binary_dilation(cliff_wall, iterations=5) & ~land
+    land_all = np.where(cliff_zone, np.nan_to_num(h)[ly, lx], land_all)
     # 그림에 그린 절벽이 아닌 곳은 부드럽게: 좁은 띠가 선에 먹혀 생긴 계단·벽을 비탈로 (그린 절벽·해안은 그대로)
-    keep_sharp = nd.binary_dilation(c["cliff"], iterations=6) | nd.binary_dilation(sea_zone, iterations=6)
+    keep_sharp = nd.binary_dilation(cliff_wall, iterations=10) | nd.binary_dilation(sea_zone, iterations=6)
     soft = nd.gaussian_filter(land_all, SMOOTH_PX)
     wgt = nd.gaussian_filter((~keep_sharp).astype(np.float32), 3)
     land_all = land_all + (soft - land_all) * wgt
@@ -364,7 +379,7 @@ def main():
     sea_h = SEA_DEPTH * (1 - np.exp(-dist_land * m_per_px / SEA_FALL_M))
     full = np.where(sea_zone, np.minimum(sea_h, 0.0), land_all)
 
-    # 협곡
+    # 협곡: 바닥 중심선을 따라 판 홈 + 폭포 밑 둥근 골·소
     pts = [(x - FRAME[0], y - FRAME[1]) for x, y, _ in CANYON]
     floors = [f for _, _, f in CANYON]
     yy, xx = np.mgrid[0:H, 0:W]
@@ -380,7 +395,16 @@ def main():
         cfloor = np.where(better, floors[i] + (floors[i + 1] - floors[i]) * t, cfloor)
     wall = np.clip((best_d - CANYON_HALF_W) / CANYON_WALL_PX, 0, 1)
     carved = cfloor + (full - cfloor) * wall
-    full = np.where(best_d <= CANYON_HALF_W + CANYON_WALL_PX, np.minimum(full, carved), full)
+    near = best_d <= CANYON_HALF_W + CANYON_WALL_PX
+    bx, by = FALL_BOWL[0] - FRAME[0], FALL_BOWL[1] - FRAME[1]
+    bd = np.hypot(xx - bx, yy - by)
+    head = floors[0]
+    pool = head - POOL_DEPTH * np.clip((POOL_R - bd) / 4.0, 0, 1)          # 소: 가장자리 4px 에 걸쳐 깊어짐
+    bowl = pool + (full - pool) * np.clip((bd - FALL_BOWL_R) / CANYON_WALL_PX, 0, 1)
+    in_bowl = bd <= FALL_BOWL_R + CANYON_WALL_PX
+    target = np.where(near, carved, np.inf)
+    target = np.where(in_bowl, np.minimum(target, bowl), target)
+    full = np.where(near | in_bowl, np.minimum(full, target), full)
 
     # 잔결 (±1.2m) — 바다 제외
     rng = np.random.default_rng(1)
@@ -388,7 +412,8 @@ def main():
     for period, amp in [(40, 1.0), (12, 0.35)]:
         g = rng.standard_normal((H // period + 3, W // period + 3)).astype(np.float32)
         noise += amp * nd.zoom(g, period, order=3)[:H, :W] / 1.0
-    full = full + noise * np.clip(full / 3.0, 0, 1)
+    calm = nd.gaussian_filter((near | in_bowl).astype(np.float32), 3)        # 협곡 바닥은 잔결 없이 (물이 아래로만 흐르게)
+    full = full + noise * np.clip(full / 3.0, 0, 1) * (1 - calm)
 
     # 지도 격자로
     hm = nd.zoom(full, (size / H, size / W), order=1)[:size, :size]
@@ -426,11 +451,13 @@ def main():
     river &= ~sea_zone
     paths = Image.new("RGB", (W, H), (255, 255, 255))
     pimg = np.asarray(paths).copy()
-    rv = nd.binary_dilation(river, iterations=2)
+    rv = nd.binary_dilation(river, iterations=RIVER_HALF_PX)
     pimg[rv] = STREAM_COLOR
     paths = Image.fromarray(pimg)
     dr = ImageDraw.Draw(paths)
-    dr.line(pts, fill=STREAM_COLOR, width=5)          # 협곡 바닥 = 개천
+    dr.line(pts, fill=STREAM_COLOR, width=2 * RIVER_HALF_PX + 1)          # 협곡 바닥 = 개천
+    for line in EXTRA_STREAMS:
+        dr.line([(x - FRAME[0], y - FRAME[1]) for x, y in line], fill=STREAM_COLOR, width=2 * RIVER_HALF_PX + 1)
     paths.resize((size, size), Image.NEAREST).save(os.path.join(MAP_DIR, "paths.png"))
     print(f"paths.png — 개천 {int(river.sum())} px")
 

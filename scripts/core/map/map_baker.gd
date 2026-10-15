@@ -11,7 +11,7 @@ const PATH_CUT_MAX := 3.0            ## 길바닥이 깎거나 메우는 최대 
 const PATH_SHOULDER_M := 5.0         ## 길섶: 길 옆에서 원지형으로 이어지는 폭 (m) — 오르막 쪽은 깎인 둑, 내리막 쪽은 메운 둑
 const AQUEDUCT_DIG := 1.5            ## 수로가 파내는 깊이 (m)
 const STREAM_DIG := 2.5              ## 개천 중앙 깊이 (m), V자로 가장자리 0
-const STREAM_SPREAD := 8             ## 개천 폭 추정: 중심선 거리를 퍼뜨리는 횟수 (칸)
+const STREAM_SPREAD := 14            ## 개천 폭 추정: 중심선 거리를 퍼뜨리는 횟수 (칸) — 반폭이 이보다 넓으면 가운데가 평평해짐
 const STEEP_PATH_DEG := 50.0         ## 굽기 뒤 이보다 가파른 길 칸은 경고 (절벽을 지나는 길; 걷기 한계 60도, 갈지자 모퉁이는 40도대)
 const STEEP_PATH_MIN_PX := 2         ## 한 곳(32m 칸)에 이만큼 넘어야 경고
 const DIR_WINDOW := 3                ## 길 방향 추정 창 반경 (px)
@@ -30,6 +30,7 @@ const REQUIRED_LAYERS := ["height", "markers"]     ## "height" 는 "heightmap" �
 ##        world: float, meta: {world, size, min_h, max_h}
 ## cfg (모두 선택): smooth_radius (기본 12), edge_sea (기본 true), min_h·max_h (기본 −16·90, 높이 한계),
 ##   peak_height (350), peak_radius (700), summit_radius (180), lake_radius (48), tower_radius (10) — MapStamps.apply 로 전달.
+##   stream_dig (2.5) — 개천 가운데 깊이 (m).
 ## errors 가 비어 있지 않으면 굽기 실패 (다른 값은 믿지 말 것).
 static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -> Dictionary:
 	var result := {
@@ -95,7 +96,7 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -
 
 	if layers.get("paths") != null:
 		_apply_paths(h, paths, size, world)
-		_dig_streams(h, paths, size)
+		_dig_streams(h, paths, size, float(cfg.get("stream_dig", STREAM_DIG)))
 
 	MapStamps.despike(h, size, world)      # P17: 맨 마지막 (도장·길·개천이 만든 얇은 지느러미까지)
 	var warns: PackedStringArray = result["warnings"]
@@ -217,10 +218,10 @@ static func _apply_paths(h: PackedFloat32Array, paths: PackedByteArray, size: in
 		h[i] = lerpf(target[i], src[i], w)
 
 
-## 개천(4): V자 파기. 깊이 = STREAM_DIG × (가장자리 거리 − 1) / (중심선 거리 − 1) — 중앙 −2.5m, 칠한 가장자리 0.
+## 개천(4): V자 파기 (cfg stream_dig, 기본 2.5m). 깊이 = dig × (가장자리 거리 − 1) / (중심선 거리 − 1) — 중앙 −2.5m, 칠한 가장자리 0.
 ## 가장자리 거리 = 개천 아닌 가장 가까운 칸까지 (3-4 체인퍼, 단위 1/3 칸). 중심선 거리 = 근처(STREAM_SPREAD 칸) 최댓값.
 ## 개천 칸만 훑어 큰 지도에서도 빠르다. 도장·길 처리 뒤에 호출한다.
-static func _dig_streams(h: PackedFloat32Array, paths: PackedByteArray, size: int) -> void:
+static func _dig_streams(h: PackedFloat32Array, paths: PackedByteArray, size: int, dig := STREAM_DIG) -> void:
 	var cells := PackedInt32Array()
 	for i in size * size:
 		if paths[i] == 4:
@@ -291,7 +292,7 @@ static func _dig_streams(h: PackedFloat32Array, paths: PackedByteArray, size: in
 		var t := 1.0
 		if centre > 3:
 			t = clampf(float(edge_d - 3) / float(centre - 3), 0.0, 1.0)
-		h[i] -= STREAM_DIG * t
+		h[i] -= dig * t
 
 
 ## encode_height 의 역: RGB8(또는 RGBA8) 16비트 높이 이미지 → size×size 높이 (m).
