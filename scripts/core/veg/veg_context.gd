@@ -1,6 +1,7 @@
 class_name VegContext
 extends RefCounted
 ## 식생 배치용 지도 조회·제외 규칙: 높이장 + 구역/길 이미지 + 표식 + 물 판정을 묶는다.
+## cfg: tower_radius·lake_radius·summit_radius (m), moat (Image, 선택 — 모양 해자 baked/moat.png).
 ## 이미지 조회 픽셀 = round((x / world + 0.5) * (N - 1)) (굽기 관례), 밖은 가장자리로 clamp.
 
 enum Layer { GRASS, SHRUB, TREE, ROCK }
@@ -18,6 +19,7 @@ const MARKER_R := {"village": 45.0, "sluice": 15.0, "bridge": 10.0, "lookout": 1
 const HILL_VILLAGE_R := 35.0
 const LAKE_BANK := 12.0
 const TOWER_PAD := 5.0
+const MOAT_BANK := 6.0      ## 모양 해자: 물·섬에서 이 거리 안은 덤불 이상 제외
 
 var field: HeightField
 var _zones: Image
@@ -29,6 +31,9 @@ var _world: float
 var _marker_ex: Array = []
 var _peaks: Array = []
 var _summit_r: float
+var _moat: Image            ## 모양 해자 (cfg "moat", 0 없음·128 물·255 섬) — 있으면 저수호·탑 원형 제외 대신
+var _moat_c := Vector2.ZERO
+var _moat_r2 := -1.0
 # 길 없는 구역 캐시: 16 m 칸 → 칸 + 4 m 여백 안에 길 픽셀이 하나도 없으면 true (excluded 의 길 검사 생략용)
 const PATH_CELL := 16.0
 const PATH_MARGIN := 4.0
@@ -43,6 +48,7 @@ func _init(p_field: HeightField, zones: Image, paths: Image, markers: Array, cfg
 	_water = water_level
 	_world = field.world_size
 	_summit_r = float(cfg.get("summit_radius", 180.0))
+	_moat = cfg.get("moat") as Image
 	for m in markers:
 		_add_marker(m)
 
@@ -54,6 +60,11 @@ func _add_marker(m: Dictionary) -> void:
 		_peaks.append(Vector2(x, z))
 	elif kind == "hill_village":
 		_marker_ex.append({"x": x, "z": z, "r2": HILL_VILLAGE_R * HILL_VILLAGE_R, "min_layer": Layer.TREE})
+	elif _moat != null and kind == "lake":
+		_moat_c = Vector2(x, z)
+		_moat_r2 = pow(float(m.get("radius", 0.0)) + MOAT_BANK + 2.0, 2.0)
+	elif _moat != null and kind == "tower":
+		pass
 	elif kind == "tower":
 		var r := float(_cfg.get("tower_radius", 0.0)) + TOWER_PAD
 		_marker_ex.append({"x": x, "z": z, "r2": r * r, "min_layer": Layer.GRASS})
@@ -110,6 +121,12 @@ func excluded(layer: int, x: float, z: float) -> bool:
 	for m in _marker_ex:
 		if layer >= m["min_layer"] and p.distance_squared_to(Vector2(m["x"], m["z"])) < m["r2"]:
 			return true
+	if layer >= Layer.SHRUB and p.distance_squared_to(_moat_c) < _moat_r2:
+		if _read(_moat, x, z) >= 64:
+			return true
+		for d in DIRS:
+			if _read(_moat, x + d.x * MOAT_BANK, z + d.y * MOAT_BANK) >= 64:
+				return true
 	if layer == Layer.TREE:
 		for pk in _peaks:
 			if p.distance_to(pk) < _summit_r:

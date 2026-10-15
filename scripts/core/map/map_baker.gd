@@ -25,7 +25,9 @@ const REQUIRED_LAYERS := ["height", "markers"]     ## "height" 는 "heightmap" �
 ## layers: {"height": Image, "heightmap": Image, "zones": Image, "paths": Image, "markers": Image} (zones·paths 는 없어도 됨).
 ## heightmap (선택) = encode_height 와 같은 RGB8 16비트 높이 (R 상위·G 하위, cfg min_h~max_h). 있으면 height 대신 쓴다 (둘 다 있으면 heightmap 이 이김).
 ##   크기가 size 와 다르면 높이 값으로 풀어 쌍선형 보간으로 맞춘다.
-## 반환: {height: PackedFloat32Array(m), zones: PackedByteArray, paths: PackedByteArray,
+## moat (선택) = 해자 모양 (흑백: 0 없음, 128 물, 255 탑 섬). 있으면 원형 저수호·탑 도장 대신 이 모양을 쓴다
+##   (높이는 heightmap 에 이미 파여 있어야 함 — tools/sketch_to_map.py). 결과 moat = MOAT_* 값 (없으면 빈 배열).
+## 반환: {height: PackedFloat32Array(m), zones: PackedByteArray, paths: PackedByteArray, moat: PackedByteArray,
 ##        markers: Array[Dictionary], errors: PackedStringArray, warnings: PackedStringArray, world: float}
 ##        world: float, meta: {world, size, min_h, max_h}
 ## cfg (모두 선택): smooth_radius (기본 12), edge_sea (기본 true), min_h·max_h (기본 −16·90, 높이 한계),
@@ -34,7 +36,7 @@ const REQUIRED_LAYERS := ["height", "markers"]     ## "height" 는 "heightmap" �
 ## errors 가 비어 있지 않으면 굽기 실패 (다른 값은 믿지 말 것).
 static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -> Dictionary:
 	var result := {
-		"height": PackedFloat32Array(), "zones": PackedByteArray(), "paths": PackedByteArray(),
+		"height": PackedFloat32Array(), "zones": PackedByteArray(), "paths": PackedByteArray(), "moat": PackedByteArray(),
 		"markers": [], "errors": PackedStringArray(), "warnings": PackedStringArray(),
 		"world": world, "meta": meta(cfg, size, world),
 	}
@@ -83,8 +85,11 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -
 		var pl := MapLegend.load_layer(layers["paths"], MapLegend.path_palette(), size)
 		for i in size * size:
 			paths[i] = pl[i] + 1       # −1 → 0
-	MapStamps.apply(h, size, world, markers, cfg, paths)
-	_clear_paths_in_lakes(paths, size, world, markers)
+	var moat := PackedByteArray()
+	if layers.get("moat") != null:
+		moat = decode_moat(layers["moat"], size)
+	MapStamps.apply(h, size, world, markers, cfg, paths, moat)
+	_clear_paths_in_lakes(paths, size, world, markers, moat)
 
 	# 구역 (비어 있음 = 초원 0)
 	var zones := PackedByteArray()
@@ -110,7 +115,31 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -
 	result["height"] = h
 	result["zones"] = zones
 	result["paths"] = paths
+	result["moat"] = moat
 	return result
+
+
+## 해자 모양 이미지 → MapStamps.MOAT_* 배열 (size², 최근접 크기 맞춤). 밝기 ≥ 192 섬, ≥ 64 물.
+static func decode_moat(img: Image, size: int) -> PackedByteArray:
+	var im := img.duplicate() as Image
+	im.convert(Image.FORMAT_L8)
+	if im.get_width() != size:
+		im.resize(size, size, Image.INTERPOLATE_NEAREST)
+	var src := im.get_data()
+	var out := PackedByteArray()
+	out.resize(size * size)
+	for i in size * size:
+		out[i] = MapStamps.MOAT_ISLAND if src[i] >= 192 else (MapStamps.MOAT_WATER if src[i] >= 64 else MapStamps.MOAT_NONE)
+	return out
+
+
+## MOAT_* 배열 → 저장용 흑백 이미지 (0·128·255, decode_moat 로 되읽힘)
+static func encode_moat(moat: PackedByteArray, size: int) -> Image:
+	var data := PackedByteArray()
+	data.resize(size * size)
+	for i in size * size:
+		data[i] = [0, 128, 255][moat[i]]
+	return Image.create_from_data(size, size, false, Image.FORMAT_L8, data)
 
 
 ## 구운 데이터 메타 (baked/meta.json): 게임이 world·높이 범위를 읽는다. world·size 는 인자가 우선.
@@ -396,7 +425,12 @@ static func preview(baked: Dictionary, size: int) -> Image:
 
 
 ## 저수호 수면 반경 + 2m 안의 길 칸을 지운다 (길이 해자 안쪽 벽·물속으로 이어지지 않게, 둑 꼭대기에서 끝남).
-static func _clear_paths_in_lakes(paths: PackedByteArray, size: int, world: float, markers: Array) -> void:
+static func _clear_paths_in_lakes(paths: PackedByteArray, size: int, world: float, markers: Array, moat := PackedByteArray()) -> void:
+	if not moat.is_empty():       # 모양 해자: 물·섬 칸의 길을 지운다
+		for i in size * size:
+			if moat[i] != MapStamps.MOAT_NONE and (paths[i] == 1 or paths[i] == 2):
+				paths[i] = 0
+		return
 	var k := float(size - 1) / world
 	for m in markers:
 		if m["kind"] != "lake" or not m.has("radius"):

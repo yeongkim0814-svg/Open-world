@@ -93,3 +93,13 @@ func test_round_water_corner_is_dry():
 	assert_true(w.depth_at(Vector3(0, 5, 100)) > 0.0, "원 안은 물")
 	assert_eq(w.depth_at(Vector3(105, 5, 105)), -1.0, "모서리(148m)는 물 아님")
 	w.free()
+
+## 모양 해자: area 가 false 인 칸(섬·둑)은 상자 안이어도 물이 아니다.
+func test_shaped_water_area():
+	var w := Water.new()
+	w.size = Vector3(100, 20, 100)
+	w.circular = true
+	w.area = func(x: float, _z: float) -> bool: return absf(x) > 20.0
+	assert_true(w.depth_at(Vector3(30, 5, 0)) > 0.0, "물 칸")
+	assert_eq(w.depth_at(Vector3(0, 5, 0)), -1.0, "섬 칸은 물 아님")
+	w.free()

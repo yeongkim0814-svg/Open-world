@@ -205,3 +205,37 @@ func test_lake_radius_cfg():
 	var lake2 := {"kind": "lake", "x": 0.0, "z": 0.0, "yaw": 0.0}
 	MapStamps.apply(d, S, W, [lake2])
 	assert_almost(lake2["radius"], 48.0, 0.0001, "기본 반경 48")
+
+## 모양 해자 (S×S): 섬 px 100..119, 물 = 그 둘레 10px 띠. 높이는 이미 파여 있다고 보고 도장을 찍지 않는다.
+func _moat() -> PackedByteArray:
+	var moat := PackedByteArray()
+	moat.resize(S * S)
+	for pz in range(90, 130):
+		for px in range(90, 130):
+			var isl := px >= 100 and px < 120 and pz >= 100 and pz < 120
+			moat[pz * S + px] = MapStamps.MOAT_ISLAND if isl else MapStamps.MOAT_WATER
+	return moat
+
+func test_shaped_moat_markers():
+	var h := _flat(50.0)
+	var moat := _moat()
+	for i in S * S:
+		if moat[i] == MapStamps.MOAT_ISLAND:
+			h[i] = 60.0
+	var before := h.duplicate()
+	var ms := [{"kind": "tower", "x": 0.0, "z": 0.0}, {"kind": "lake", "x": 0.0, "z": 0.0}]
+	MapStamps.apply(h, S, W, ms, {}, PackedByteArray(), moat)
+	var t := _first(ms, "tower")
+	var lk := _first(ms, "lake")
+	var c := _px_to_world(109.5)
+	assert_almost(t["x"], c, 0.01)
+	assert_almost(t["z"], c, 0.01)
+	assert_almost(t["top"], 60.0, 0.01)
+	assert_almost(lk["crest"], 58.0, 0.01, "둑 = 섬 − 2")
+	assert_true(lk["shaped"])
+	assert_almost(lk["radius"], (_px_to_world(129) - c) * sqrt(2.0), 0.1, "가장 먼 물 칸 (모서리)")
+	assert_eq(h, before, "높이는 그대로")
+
+func test_moat_image_roundtrip():
+	var moat := _moat()
+	assert_eq(MapBaker.decode_moat(MapBaker.encode_moat(moat, S), S), moat)

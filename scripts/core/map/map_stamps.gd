@@ -17,6 +17,9 @@ const TOWER_R := 10.0           ## 탑 섬 반경 기본값 (cfg tower_radius)
 const TOWER_BLEND := 4.0
 const TOWER_RISE := 2.0         ## 탑 섬 윗면 = 둑 꼭대기 + 2m
 const VILLAGE_R := 40.0
+const MOAT_NONE := 0            ## 모양 해자 칸 값 (MapBaker.decode_moat)
+const MOAT_WATER := 1
+const MOAT_ISLAND := 2
 const VILLAGE_BLEND := 15.0
 
 # 봉우리 (설계서 P18). 칠한 높이에 더한다.
@@ -46,7 +49,9 @@ const DESPIKE_RING := 4.0
 
 ## cfg (선택): lake_radius(48), tower_radius(10), peak_height(350), peak_radius(700), summit_radius(180).
 ## paths (선택): 구운 길 인덱스 (1 흙길·2 포장길) — 봉우리 절벽대를 지나는 길 자리에 틈을 낸다.
-static func apply(h: PackedFloat32Array, size: int, world: float, markers: Array, cfg := {}, paths := PackedByteArray()) -> void:
+## moat (선택): 모양 해자 (MOAT_* 칸, size²). 있으면 저수호·탑은 도장을 찍지 않고 (높이는 이미 파여 있음)
+##   표식만 고친다 — shaped_moat 참고.
+static func apply(h: PackedFloat32Array, size: int, world: float, markers: Array, cfg := {}, paths := PackedByteArray(), moat := PackedByteArray()) -> void:
 	var lake_r := float(cfg.get("lake_radius", LAKE_WALL_R))
 	var tower_r := float(cfg.get("tower_radius", TOWER_R))
 	for m in markers:
@@ -55,6 +60,12 @@ static func apply(h: PackedFloat32Array, size: int, world: float, markers: Array
 			var roads := road_crossings(paths, size, world, m["x"], m["z"], summit_r + 8.0, summit_r + CLIFF_WIDTH - 8.0)
 			_stamp_peak(h, size, world, m, float(cfg.get("peak_height", PEAK_HEIGHT)),
 				float(cfg.get("peak_radius", PEAK_RADIUS)), summit_r, roads)
+	if not moat.is_empty():
+		shaped_moat(h, size, world, markers, moat)
+		for m in markers:
+			if m["kind"] == "village":
+				_stamp_village(h, size, world, m["x"], m["z"])
+		return
 	var orig := h.duplicate()      # 봉우리까지 찍은 지형 (고리 중앙값은 이것으로 잰다)
 	var lakes: Array = []
 	for m in markers:
@@ -77,6 +88,50 @@ static func apply(h: PackedFloat32Array, size: int, world: float, markers: Array
 	for m in markers:
 		if m["kind"] == "village":
 			_stamp_village(h, size, world, m["x"], m["z"])
+
+
+## 모양 해자의 표식: 탑 = 섬 칸 무게중심, top = 섬 높이 중앙값. 저수호 = 물·섬 무게중심,
+## crest = top − TOWER_RISE (물가 둑 높이), radius = 중심에서 가장 먼 물 칸 거리 (둘레 원 — 범위 계산용),
+## shaped = true (게임은 모양을 baked/moat.png 로 읽는다). 섬이나 물이 없으면 아무것도 하지 않음.
+static func shaped_moat(h: PackedFloat32Array, size: int, world: float, markers: Array, moat: PackedByteArray) -> void:
+	var isl_sum := Vector2.ZERO
+	var all_sum := Vector2.ZERO
+	var n_isl := 0
+	var n_all := 0
+	var tops := PackedFloat32Array()
+	for pz in size:
+		for px in size:
+			var v := moat[pz * size + px]
+			if v == MOAT_NONE:
+				continue
+			var p := Vector2(_w(px, size, world), _w(pz, size, world))
+			all_sum += p
+			n_all += 1
+			if v == MOAT_ISLAND:
+				isl_sum += p
+				n_isl += 1
+				tops.append(h[pz * size + px])
+	if n_isl == 0 or n_isl == n_all:
+		return
+	tops.sort()
+	var top := tops[tops.size() / 2]
+	var c_all := all_sum / n_all
+	var r2 := 0.0
+	for pz in size:
+		for px in size:
+			if moat[pz * size + px] == MOAT_WATER:
+				r2 = maxf(r2, Vector2(_w(px, size, world), _w(pz, size, world)).distance_squared_to(c_all))
+	for m in markers:
+		if m["kind"] == "tower":
+			m["x"] = isl_sum.x / n_isl
+			m["z"] = isl_sum.y / n_isl
+			m["top"] = top
+		elif m["kind"] == "lake":
+			m["x"] = c_all.x
+			m["z"] = c_all.y
+			m["crest"] = top - TOWER_RISE
+			m["radius"] = sqrt(r2)
+			m["shaped"] = true
 
 
 ## 격자 칸 (px, pz) 의 세계 좌표

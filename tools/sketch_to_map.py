@@ -64,8 +64,8 @@ FOREST_DENSITY = 0.008 # 이 밀도 넘으면 숲
 MARKERS = [
     ("start", 873, 1728),
     ("lookout", 158, 1847),        # 전망대 (observatory)
-    ("tower", 634, 727),           # 굽기에서 해자 중심으로 옮겨진다
-    ("lake", 629, 721),            # 해자 = 저수호 도장. 정상 평지 한가운데 (그림의 빗금 자리는 동쪽 비탈에 걸려 좁았다)
+    ("tower", 634, 727),           # 굽기에서 moat.png 탑 섬 중심으로 옮겨진다
+    ("lake", 629, 721),            # 해자 = moat.png 모양 (굽기에서 중심·둑 높이 계산)
     ("sluice", 420, 592),
     ("sluice", 790, 922),
     ("sluice", 628, 1297),
@@ -85,6 +85,13 @@ POOL_DEPTH = 14.0              # 소 깊이 (바닥 아래, m) — 개천 파기
 EXTRA_STREAMS = [[(667, 1480), (660, 1510), (651, 1538)]]   # 그림에서 마을 빗금에 가려 끊긴 남쪽 강 (절벽 = 폭포 자리)
 NOT_CLIFF_BOXES = [(595, 700, 710, 860)]   # 절벽색으로 읽히지만 절벽이 아닌 곳 (원본 x0, x1, y0, y1): 정상의 옛 탑 빗금
 RIVER_HALF_PX = 6              # 개천 칠하기 반폭 (원본 px ≈ 8m → 폭 약 17m)
+# 해자: 정상 300m 등고선 모양을 안쪽으로 줄여 판다 (원형 도장 대신). 결과는 moat.png (0 없음·128 물·255 탑 섬)
+SUMMIT_REGIONS = [35, 40, 41]  # 300m 등고선 안 영역 (40·41 = 그림의 탑·해자 빗금 칸)
+MOAT_RIM_PX = 8                # 300m 선 → 해자 바깥 벽 (원본 px ≈ 11m)
+MOAT_W_PX = 19                 # 해자 물 폭 (px ≈ 25m)
+MOAT_DEPTH = 22.0              # 해자 바닥 = 둑 높이 − 22m
+ISLAND_RISE = 2.0              # 탑 섬 윗면 = 둑 높이 + 2m
+MOAT_BANK_PX = 6               # 물가 둑 (px): 둑 높이 아래면 메운다 (물이 새지 않게)
 # 숲 (구역 지도 색 인덱스는 MapLegend.ZONES 순서: 활엽수 숲)
 FOREST_COLOR = (0x54, 0x82, 0x35)
 HIGHLAND_COLOR = (0xA6, 0xA6, 0xA6)
@@ -417,6 +424,31 @@ def main():
 
     # 지도 격자로
     hm = nd.zoom(full, (size / H, size / W), order=1)[:size, :size]
+
+    # 해자: 300m 등고선 안(P)을 줄여 섬, 섬 둘레 MOAT_W 띠 = 물. 지도 격자에서 판다 (벽이 1칸 = 거의 수직)
+    P = np.isin(rr, SUMMIT_REGIONS)
+    P = nd.binary_opening(nd.binary_fill_holes(nd.binary_closing(nd.binary_dilation(P, iterations=3), iterations=12)), iterations=4)
+    dP = nd.distance_transform_edt(P)
+    isl = dP > MOAT_RIM_PX + MOAT_W_PX
+    lab, n = nd.label(isl)
+    isl = lab == 1 + int(np.argmax(nd.sum(isl, lab, range(1, n + 1))))
+    isl = nd.binary_opening(isl, iterations=3)
+    water = nd.binary_dilation(isl, iterations=MOAT_W_PX) & (dP > MOAT_RIM_PX) & ~isl
+
+    def up(mask):     # 원본 px 모양 → 지도 격자 (가장자리 매끄럽게)
+        return nd.zoom(nd.gaussian_filter(mask.astype(np.float32), 1.5), (size / H, size / W), order=1)[:size, :size] > 0.5
+    isl_g, water_g = up(isl), up(water | isl) & ~up(isl)
+    crest = float(np.median(hm[isl_g])) - ISLAND_RISE      # 둑 높이 = 섬(정상 평지) 높이 중앙값 − 2
+    bank = nd.binary_dilation(water_g, iterations=round(MOAT_BANK_PX * size / W)) & ~water_g & ~isl_g
+    hm[bank] = np.maximum(hm[bank], crest)
+    hm[isl_g] = crest + ISLAND_RISE
+    hm[water_g] = crest - MOAT_DEPTH
+    moat = np.zeros((size, size), np.uint8)
+    moat[water_g] = 128
+    moat[isl_g] = 255
+    Image.fromarray(moat).save(os.path.join(MAP_DIR, "moat.png"))
+    gm = cfg["world"] / size
+    print(f"moat.png — 섬 {isl_g.sum() * gm * gm:.0f} m², 물 {water_g.sum() * gm * gm:.0f} m², 둑 {crest:.1f} m")
     t = np.clip((hm - min_h) / (max_h - min_h) * 255.0, 0, 255)
     r = np.floor(t).astype(np.int32)
     g = np.clip(np.round((t - r) * 256.0), 0, 255).astype(np.int32)

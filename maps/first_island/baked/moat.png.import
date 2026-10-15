@@ -1,0 +1,14 @@
+[remap]
+
+importer="image"
+type="Image"
+uid="uid://cxcf4ymbubfd0"
+path="res://.godot/imported/moat.png-e6425b83e6d8ec5059094215737c9da7.image"
+
+[deps]
+
+source_file="res://maps/first_island/baked/moat.png"
+dest_files=["res://.godot/imported/moat.png-e6425b83e6d8ec5059094215737c9da7.image"]
+
+[params]
+

@@ -4,6 +4,7 @@ extends Node3D
 
 @export var size := Vector3(10, 4, 10)
 @export var circular := false   ## true = 원기둥 (지름 size.x) — 둥근 호수
+var area := Callable()          ## (선택) (x, z) → bool: 상자 안에서 물인 칸만 (모양 해자)
 
 
 func _ready() -> void:
@@ -21,6 +22,8 @@ func depth_at(pos: Vector3) -> float:
 	if absf(local.x) > size.x * 0.5 or absf(local.z) > size.z * 0.5 or local.y < -size.y * 0.5:
 		return -1.0
 	if circular and local.x * local.x + local.z * local.z > size.x * size.x * 0.25:
+		return -1.0
+	if area.is_valid() and not bool(area.call(pos.x, pos.z)):
 		return -1.0
 	var d := surface_y() - pos.y
 	return d if d > 0.0 else -1.0

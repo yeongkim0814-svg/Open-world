@@ -80,3 +80,21 @@ func test_ground_y_foot():
 	assert_almost(c.ground_y(20.0, 10.0), 12.0, 0.1)
 	assert_almost(c.ground_y(20.0, 10.0, 3.0), 11.7, 0.1, "발 모서리 최솟값")
 	assert_true(c.slope_ny(20.0, 10.0) > 0.99)
+
+## 모양 해자: 섬 x −36..−24 · z −6..6, 물 = 그 둘레 6 m 띠. 덤불 이상은 물·섬·둑 6 m 안 제외, 풀은 섬 허용.
+func test_shaped_moat():
+	var img := Image.create(VegFixture.N, VegFixture.N, false, Image.FORMAT_L8)
+	for j in range(52, 77):
+		for i in range(22, 47):
+			var isl := i >= 28 and i <= 40 and j >= 58 and j <= 70
+			img.set_pixel(i, j, Color8(255 if isl else 128, 0, 0))
+	var cfg := VegFixture.cfg()
+	cfg["moat"] = img
+	var mk := [{"kind": "lake", "x": -30.0, "z": 0.0, "radius": 17.0, "shaped": true},
+		{"kind": "tower", "x": -30.0, "z": 0.0}]
+	var c := VegContext.new(VegFixture.field(), VegFixture.zones(), VegFixture.paths(), mk, cfg)
+	assert_true(c.excluded(VegContext.Layer.SHRUB, -30.0, 0.0), "섬 덤불")
+	assert_false(c.excluded(VegContext.Layer.GRASS, -30.0, 0.0), "섬 풀 허용")
+	assert_true(c.excluded(VegContext.Layer.SHRUB, -30.0, 9.0), "물 덤불")
+	assert_true(c.excluded(VegContext.Layer.SHRUB, -30.0, 15.0), "둑 3 m 덤불")
+	assert_false(c.excluded(VegContext.Layer.SHRUB, -30.0, 22.0), "10 m 밖")

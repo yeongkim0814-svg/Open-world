@@ -128,6 +128,13 @@ func _img(name: String) -> Image:
 	return res if res is Image else (res.get_image() if res is Texture2D else null)
 
 
+## 모양 해자 칸 값: 0 없음, 1 물, 2 섬 (baked/moat.png, 굽기 관례 픽셀)
+func _moat_at(img: Image, x: float, z: float) -> int:
+	var n := img.get_width()
+	var v := img.get_pixel(clampi(roundi((x / world + 0.5) * (n - 1)), 0, n - 1), clampi(roundi((z / world + 0.5) * (n - 1)), 0, n - 1)).r8
+	return 2 if v >= 192 else (1 if v >= 64 else 0)
+
+
 func _tex(name: String) -> ImageTexture:
 	var img := _img(name)
 	return ImageTexture.create_from_image(img) if img else null
@@ -213,7 +220,8 @@ func _water_mat(use_here: bool) -> ShaderMaterial:
 
 
 ## 정점색 R = 깊이(0~1)인 격자 수면.
-func _water_grid(center: Vector2, half: float, cell: float, level: float, depth_scale: float, radius := INF) -> ArrayMesh:
+## inside (선택): (x, z) → bool — 칸 가운데나 모서리 하나라도 물이면 그 칸을 그린다 (벽 안쪽까지 덮게).
+func _water_grid(center: Vector2, half: float, cell: float, level: float, depth_scale: float, radius := INF, inside := Callable()) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var n := int(half * 2.0 / cell)
@@ -222,6 +230,9 @@ func _water_grid(center: Vector2, half: float, cell: float, level: float, depth_
 			var x0 := center.x - half + ix * cell
 			var z0 := center.y - half + iz * cell
 			if Vector2(x0 + cell * 0.5, z0 + cell * 0.5).distance_to(center) > radius:
+				continue
+			if inside.is_valid() and not (inside.call(x0 + cell * 0.5, z0 + cell * 0.5) or inside.call(x0, z0)
+					or inside.call(x0 + cell, z0) or inside.call(x0, z0 + cell) or inside.call(x0 + cell, z0 + cell)):
 				continue
 			var quad := [Vector2(x0, z0), Vector2(x0 + cell, z0), Vector2(x0 + cell, z0 + cell), Vector2(x0, z0 + cell)]
 			for idx in [0, 1, 2, 0, 2, 3]:
@@ -251,18 +262,24 @@ func _build_water() -> void:
 		return
 	var c := Vector2(lk.x, lk.z)
 	var crest := float(lk.get("crest", 16.0))
-	var lake_r := float(lk.get("radius", 48.0))   ## 수면 반경 (굽기 cfg lake_radius)
+	var lake_r := float(lk.get("radius", 48.0))   ## 수면 반경 (굽기 cfg lake_radius) — 모양 해자는 둘레 원 반경
 	var level := crest - LEVEL_BELOW_CREST
 	var floor_y := crest - LAKE_DEPTH
+	var in_moat := Callable()
+	if lk.get("shaped", false):
+		var moat := _img("moat.png")
+		if moat:
+			in_moat = func(x: float, z: float) -> bool: return _moat_at(moat, x, z) == 1
 	var lake := MeshInstance3D.new()
 	lake.name = "LakeSurface"
-	lake.mesh = _water_grid(c, lake_r + 2.0, 2.0, level, 6.0, lake_r + 2.0)
+	lake.mesh = _water_grid(c, lake_r + 2.0, 2.0, level, 6.0, lake_r + 2.0, in_moat)
 	lake.material_override = _water_mat(false)
 	lake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(lake)
 	var w := Water.new()   # 수영 판정 (그룹 "water")
 	w.size = Vector3(lake_r * 2.0, level - floor_y, lake_r * 2.0)
 	w.circular = true
+	w.area = in_moat
 	w.position = Vector3(c.x, (level + floor_y) * 0.5, c.y)
 	add_child(w)
 
@@ -279,6 +296,10 @@ func _build_vegetation() -> void:
 	for k in ["tower_radius", "lake_radius", "summit_radius"]:
 		if mc.has(k):
 			cfg[k] = float(mc[k])
+	if _marker("lake").get("shaped", false):
+		var moat := _img("moat.png")
+		if moat:
+			cfg["moat"] = moat
 	if _veg_catalog == null:
 		_veg_catalog = VegCatalog.new()
 	var ctx := VegContext.new(field, zones, paths, markers, cfg)

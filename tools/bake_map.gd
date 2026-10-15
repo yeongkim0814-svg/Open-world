@@ -3,15 +3,16 @@ extends SceneTree
 ## 읽기: res://maps/<map>/{height,heightmap,zones,paths,markers}.png (zones·paths 는 없어도 됨)
 ##       heightmap.png (선택) = baked/height.png 와 같은 RGB8 16비트 높이 (R 상위·G 하위, min_h~max_h).
 ##       있으면 height.png 대신 쓰고 (height.png 는 없어도 됨), 크기가 다르면 쌍선형으로 맞춘다.
+##       moat.png (선택) = 해자 모양 (0 없음·128 물·255 탑 섬) — 원형 저수호·탑 도장 대신.
 ##       res://maps/<map>/map.json (선택): {"size", "world", "min_h", "max_h", "smooth_radius", "edge_sea",
 ##       "peak_height", "peak_radius", "summit_radius", "lake_radius", "tower_radius"}
 ##       size = 지도 이미지를 맞출 격자 크기 (기본 1024), world = 세계 폭 m (기본 1024)
-## 쓰기: res://maps/<map>/baked/{height.png, zones.png, paths.png, markers.json, preview.png, meta.json}
+## 쓰기: res://maps/<map>/baked/{height.png, zones.png, paths.png, markers.json, preview.png, meta.json, moat.png(해자가 있을 때)}
 ## 오류가 있으면 메시지를 출력하고 종료 코드 1 (아무것도 쓰지 않음).
 
 const DEFAULT_SIZE := 1024
 const DEFAULT_WORLD := 1024.0
-const LAYER_NAMES := ["height", "heightmap", "zones", "paths", "markers"]
+const LAYER_NAMES := ["height", "heightmap", "zones", "paths", "markers", "moat"]
 
 
 func _initialize() -> void:
@@ -69,6 +70,11 @@ func _initialize() -> void:
 	ok = _save(Image.create_from_data(size, size, false, Image.FORMAT_R8, baked["zones"]), "%s/zones.png" % out_dir) and ok
 	ok = _save(Image.create_from_data(size, size, false, Image.FORMAT_R8, baked["paths"]), "%s/paths.png" % out_dir) and ok
 	ok = _save(MapBaker.preview(baked, size), "%s/preview.png" % out_dir) and ok
+	var moat_path := ProjectSettings.globalize_path("%s/moat.png" % out_dir)
+	if not baked["moat"].is_empty():
+		ok = _save(MapBaker.encode_moat(baked["moat"], size), "%s/moat.png" % out_dir) and ok
+	elif FileAccess.file_exists(moat_path):
+		DirAccess.remove_absolute(moat_path)      # 옛 해자 모양이 남아 게임이 잘못 읽지 않게
 	ok = _write_text(JSON.stringify(baked["markers"], "\t"), "%s/markers.json" % out_dir) and ok
 	ok = _write_text(JSON.stringify(meta, "\t"), "%s/meta.json" % out_dir) and ok
 	var t3 := Time.get_ticks_msec()
