@@ -5,3 +5,5 @@ export_presets.cfg
 tests/_*
 # 에이전트 임시 작업 트리
 .claude/worktrees/
+# Python 캐시 (sketch_to_map.py 등 import 시 생성)
+__pycache__/
