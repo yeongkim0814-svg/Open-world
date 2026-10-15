@@ -17,7 +17,7 @@ func test_scene_has_vegetation_blocks():
 	# 지형 높이장이 준비된 뒤 만들어졌는지
 	assert_true(s.get("field") != null, "field 준비 후 생성")
 	assert_true(veg.get_parent() == s and veg.get_index() > s.get_node("Terrain").get_index(), "지형 뒤에 붙는다")
-	veg.update_center(Vector3(690, 0, 705))
+	veg.update_center(Vector3(0, 0, 300))     # 내륙 초원 (지도 바뀌면 육지인지 확인)
 	assert_true(veg.busy(), "중심을 옮기면 할 일이 생겨야 함")
 	var n := 0
 	while veg.stats()["blocks"] == 0 and n < 200:

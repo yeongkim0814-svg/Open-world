@@ -101,6 +101,44 @@ func test_missing_required_layer_errors():
 	var bad := MapBaker.bake({"height": rect, "markers": _markers_img()}, S, W)
 	assert_true(bad["errors"].size() > 0 and "300" in bad["errors"][0], "크기가 오류에 나옴: %s" % str(bad["errors"]))
 
+## 높이 = 동서 비탈 + 둔덕 (m). 정규화 좌표 u, v ∈ [0, 1]
+func _synth_h(u: float, v: float) -> float:
+	return 10.0 + 20.0 * u + 8.0 * exp(-((u - 0.5) * (u - 0.5) + (v - 0.5) * (v - 0.5)) / 0.01)
+
+func _synth_heightmap(n: int) -> Image:
+	var h := PackedFloat32Array()
+	h.resize(n * n)
+	for y in n:
+		for x in n:
+			h[y * n + x] = _synth_h(float(x) / (n - 1), float(y) / (n - 1))
+	return MapBaker.encode_height(h, n)
+
+## heightmap 만으로 굽기 (height.png 없음), 도장에서 먼 곳은 입력 높이 그대로 (크기 다르면 보간)
+func test_heightmap_replaces_height():
+	for n in [64, S]:
+		var baked := MapBaker.bake({"heightmap": _synth_heightmap(n), "markers": _markers_img()}, S, W)
+		assert_eq(baked["errors"].size(), 0, str(baked["errors"]))
+		assert_eq(baked["warnings"].size(), 0, str(baked["warnings"]))
+		var h := baked["height"] as PackedFloat32Array
+		assert_eq(h.size(), S * S)
+		for p in [Vector2i(100, 120), Vector2i(128, 128), Vector2i(60, 200), Vector2i(150, 90)]:
+			var want := _synth_h(float(p.x) / (S - 1), float(p.y) / (S - 1))
+			assert_almost(h[p.y * S + p.x], want, 0.05 if n == S else 0.5, "n=%d %s" % [n, str(p)])
+	# 같은 크기면 값이 정확히 (양자화 오차만)
+	var exact := MapBaker.bake({"heightmap": _synth_heightmap(S), "markers": _markers_img()}, S, W)["height"] as PackedFloat32Array
+	assert_almost(exact[128 * S + 128], _synth_h(128.0 / (S - 1), 128.0 / (S - 1)), 0.05)
+
+func test_heightmap_wins_over_height():
+	var layers := _layers(_height_img(3, 4))
+	layers["heightmap"] = _synth_heightmap(S)
+	var baked := MapBaker.bake(layers, S, W)
+	assert_eq(baked["errors"].size(), 0, str(baked["errors"]))
+	var warned := false
+	for w in baked["warnings"]:
+		warned = warned or "height.png" in w
+	assert_true(warned, "height.png 무시 경고: %s" % str(baked["warnings"]))
+	assert_almost((baked["height"] as PackedFloat32Array)[128 * S + 100], _synth_h(100.0 / (S - 1), 128.0 / (S - 1)), 0.05)
+
 func test_preview_size():
 	var baked := MapBaker.bake(_layers(_height_img(3, 4)), S, W)
 	var img := MapBaker.preview(baked, S)

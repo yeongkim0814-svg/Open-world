@@ -19,10 +19,12 @@ const SMOOTH_RADIUS := 12.0
 const DETAIL := 1.5
 const SEED := 1
 
-const REQUIRED_LAYERS := ["height", "markers"]
+const REQUIRED_LAYERS := ["height", "markers"]     ## "height" 는 "heightmap" 이 있으면 없어도 됨
 
 
-## layers: {"height": Image, "zones": Image, "paths": Image, "markers": Image} (zones·paths 는 없어도 됨).
+## layers: {"height": Image, "heightmap": Image, "zones": Image, "paths": Image, "markers": Image} (zones·paths 는 없어도 됨).
+## heightmap (선택) = encode_height 와 같은 RGB8 16비트 높이 (R 상위·G 하위, cfg min_h~max_h). 있으면 height 대신 쓴다 (둘 다 있으면 heightmap 이 이김).
+##   크기가 size 와 다르면 높이 값으로 풀어 쌍선형 보간으로 맞춘다.
 ## 반환: {height: PackedFloat32Array(m), zones: PackedByteArray, paths: PackedByteArray,
 ##        markers: Array[Dictionary], errors: PackedStringArray, warnings: PackedStringArray, world: float}
 ##        world: float, meta: {world, size, min_h, max_h}
@@ -37,6 +39,8 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -
 	}
 	var errors: PackedStringArray = result["errors"]
 	for name in REQUIRED_LAYERS:
+		if name == "height" and layers.get("heightmap") != null:
+			continue
 		if not layers.has(name) or layers[name] == null:
 			errors.append("필수 지도 없음: %s.png" % name)
 	for name in layers:
@@ -57,13 +61,19 @@ static func bake(layers: Dictionary, size := 1024, world := 1024.0, cfg := {}) -
 	result["markers"] = markers
 
 	# 높이
-	var bands := MapLegend.load_layer(layers["height"], MapLegend.height_palette(), size)
-	var cliff := PackedByteArray()
-	cliff.resize(size * size)
-	for i in size * size:
-		if bands[i] == MapLegend.CLIFF_INDEX:
-			cliff[i] = 1
-	var h := HeightBands.build(bands, size, cliff, float(cfg.get("smooth_radius", SMOOTH_RADIUS)), DETAIL, SEED, bool(cfg.get("edge_sea", true)))
+	var h: PackedFloat32Array
+	if layers.get("heightmap") != null:
+		if layers.get("height") != null:
+			result["warnings"].append(MarkerReader.WARNING_PREFIX + "heightmap.png 가 있어 height.png 는 무시합니다")
+		h = decode_heightmap(layers["heightmap"], size, float(result["meta"]["min_h"]), float(result["meta"]["max_h"]))
+	else:
+		var bands := MapLegend.load_layer(layers["height"], MapLegend.height_palette(), size)
+		var cliff := PackedByteArray()
+		cliff.resize(size * size)
+		for i in size * size:
+			if bands[i] == MapLegend.CLIFF_INDEX:
+				cliff[i] = 1
+		h = HeightBands.build(bands, size, cliff, float(cfg.get("smooth_radius", SMOOTH_RADIUS)), DETAIL, SEED, bool(cfg.get("edge_sea", true)))
 
 	# 길 (구운 값 = 인덱스 + 1, 0 = 없음) — 봉우리 틈 자리를 정하므로 도장보다 먼저 읽는다
 	var paths := PackedByteArray()
@@ -282,6 +292,41 @@ static func _dig_streams(h: PackedFloat32Array, paths: PackedByteArray, size: in
 		if centre > 3:
 			t = clampf(float(edge_d - 3) / float(centre - 3), 0.0, 1.0)
 		h[i] -= STREAM_DIG * t
+
+
+## encode_height 의 역: RGB8(또는 RGBA8) 16비트 높이 이미지 → size×size 높이 (m).
+## 크기가 다르면 높이 값으로 먼저 풀고 나서 쌍선형 보간 (양 끝 칸이 끝 칸에 맞는 HeightField 와 같은 배치).
+static func decode_heightmap(img: Image, size: int, min_h := H_MIN, max_h := H_MAX) -> PackedFloat32Array:
+	var src := img.duplicate() as Image
+	var gray := src.get_format() == Image.FORMAT_L8 or src.get_format() == Image.FORMAT_R8
+	src.convert(Image.FORMAT_RGBA8)
+	var sw := src.get_width()
+	var sh := src.get_height()
+	var data := src.get_data()
+	var scale := (max_h - min_h) / 255.0
+	var hm := PackedFloat32Array()
+	hm.resize(sw * sh)
+	for i in sw * sh:
+		var lo := 0.0 if gray else data[i * 4 + 1] / 256.0
+		hm[i] = min_h + (data[i * 4] + lo) * scale
+	if sw == size and sh == size:
+		return hm
+	var out := PackedFloat32Array()
+	out.resize(size * size)
+	var kx := float(sw - 1) / maxf(size - 1, 1)
+	var ky := float(sh - 1) / maxf(size - 1, 1)
+	for y in size:
+		var fy := y * ky
+		var y0 := int(fy)
+		var y1 := mini(y0 + 1, sh - 1)
+		var ty := fy - y0
+		for x in size:
+			var fx := x * kx
+			var x0 := int(fx)
+			var x1 := mini(x0 + 1, sw - 1)
+			var tx := fx - x0
+			out[y * size + x] = lerpf(lerpf(hm[y0 * sw + x0], hm[y0 * sw + x1], tx), lerpf(hm[y1 * sw + x0], hm[y1 * sw + x1], tx), ty)
+	return out
 
 
 ## 높이 (m) → RGB8 16비트 (R 상위·G 하위). HeightField(img, world, min_h, max_h) 가 그대로 읽는다.
