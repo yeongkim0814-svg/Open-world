@@ -1,12 +1,15 @@
 class_name TreeGen
 extends RefCounted
 ## 나무 생성기: 각진 6각 줄기 + 크고 각진 잎 덩어리 2~4개(찌그러뜨린 다면체). 결정적(seed).
-## SPREAD = 납작하고 넓은 활엽수 수관. lod 1 = 4각 줄기(뚜껑 없음) + 비세분 수관 덩어리 1개(28 삼각형), 키·수관 범위는 lod 0 과 같다.
+## SPREAD = 납작하고 넓은 활엽수 수관. 활엽수(SHRUB 아닌 것)는 BotW 비율: 평균 키 ≈ 12 m, 수관 아래 ≈ 4 m 줄기만 (숲 안 시야).
+## lod 1 = 4각 줄기(뚜껑 없음) + 비세분 수관 덩어리 1개(28 삼각형), 키·수관 범위는 lod 0 과 같다.
 ## 서피스 0 = 줄기(style_lit), 서피스 1 = 잎(style_foliage). 잎 정점색: R = 명도(0.8~1.0, 셰이더 ×1.1), G = 바람 가중(나무 높이 비율), A = AO.
 
 enum Kind { ROUND, COLUMN, SHRUB, SPREAD }
 
 const TRUNK_SIDES := 6
+const TREE_SIZE := 2.7       ## 활엽수 크기 배율 (줄기 높이·수관 전부) — 덤불은 1
+const TREE_TRUNK_R := 2.0    ## 활엽수 줄기 굵기 배율 (크기 배율보다 작게: 12 m 나무에 지름 ≈ 1 m)
 
 
 static func build(seed: int, kind: int, lod := 0) -> ArrayMesh:
@@ -19,14 +22,14 @@ static func build(seed: int, kind: int, lod := 0) -> ArrayMesh:
 	var trunk_r := 0.0
 	match kind:
 		Kind.ROUND:
-			trunk_h = rng.randf_range(1.6, 2.6)
+			trunk_h = rng.randf_range(1.9, 2.9)   # 수관 바닥을 들어 올림 (×TREE_SIZE 후 ≈ 4.5 m)
 			trunk_r = rng.randf_range(0.2, 0.28)
 			var rr := rng.randf_range(1.2, 1.7)
 			blobs.append([Vector3(0.0, trunk_h + rr * 0.6, 0.0), Vector3(rr, rr * 0.85, rr)])
-			blobs.append([Vector3(rr * 0.7, trunk_h + rr * 0.1, rr * 0.2), Vector3(rr * 0.7, rr * 0.6, rr * 0.7)])
+			blobs.append([Vector3(rr * 0.7, trunk_h + rr * 0.3, rr * 0.2), Vector3(rr * 0.7, rr * 0.6, rr * 0.7)])
 			blobs.append([Vector3(-rr * 0.6, trunk_h + rr * 0.3, -rr * 0.4), Vector3(rr * 0.65, rr * 0.55, rr * 0.65)])
 		Kind.COLUMN:
-			trunk_h = rng.randf_range(1.0, 1.6)
+			trunk_h = rng.randf_range(1.4, 2.0)
 			trunk_r = rng.randf_range(0.16, 0.22)
 			var w := rng.randf_range(0.8, 1.05)
 			var y := trunk_h
@@ -43,7 +46,7 @@ static func build(seed: int, kind: int, lod := 0) -> ArrayMesh:
 			blobs.append([Vector3(rr * 0.75, trunk_h + rr * 0.3, rr * 0.2), Vector3(rr * 0.6, rr * 0.5, rr * 0.6)])
 			blobs.append([Vector3(-rr * 0.55, trunk_h + rr * 0.35, -rr * 0.45), Vector3(rr * 0.55, rr * 0.5, rr * 0.55)])
 		Kind.SPREAD:
-			trunk_h = rng.randf_range(2.0, 2.8)
+			trunk_h = rng.randf_range(2.3, 3.1)
 			trunk_r = rng.randf_range(0.22, 0.3)
 			var rr := rng.randf_range(2.0, 2.6)
 			blobs.append([Vector3(0.0, trunk_h + rr * 0.3, 0.0), Vector3(rr * 1.05, rr * 0.4, rr * 1.05)])
@@ -58,6 +61,13 @@ static func build(seed: int, kind: int, lod := 0) -> ArrayMesh:
 	for b in blobs:
 		b[0] = Vector3(b[0].x, b[0].y * scale_y, b[0].z)
 		b[1] = Vector3(b[1].x, b[1].y * scale_y, b[1].z)
+	# 활엽수: 모양 그대로 통째로 키운다 (삼각형 수 같음)
+	if kind != Kind.SHRUB:
+		trunk_h *= TREE_SIZE
+		trunk_r *= TREE_TRUNK_R
+		for b in blobs:
+			b[0] *= TREE_SIZE
+			b[1] *= TREE_SIZE
 	# 크기는 모두 위에서 같은 rng 순서로 정해졌으므로 lod 와 무관하게 키·수관 범위가 같다.
 	_trunk(k, rng, trunk_h * 1.15, trunk_r, 4 if lod >= 1 else TRUNK_SIDES, lod < 1)
 	k.begin_surface()

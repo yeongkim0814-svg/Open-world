@@ -71,7 +71,7 @@ func test_tree_slope_and_spacing():
 			assert_true(c.slope_ny(p.x, p.z) >= 0.77, "나무 경사 ny %.3f" % c.slope_ny(p.x, p.z))
 			for j in range(i + 1, items.size()):
 				var q: Vector3 = items[j]["xform"].origin
-				assert_true(Vector2(p.x, p.z).distance_to(Vector2(q.x, q.z)) >= 4.0 - 0.001, "나무 간격")
+				assert_true(Vector2(p.x, p.z).distance_to(Vector2(q.x, q.z)) >= VegPlacement.TREE_SPACING - 0.001, "나무 간격")
 	assert_true(n > 10, "나무 수 %d" % n)
 
 

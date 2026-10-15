@@ -28,7 +28,7 @@ func _init() -> void:
 	var leaves := _foliage("foliage", "grass_tip", true, 100000.0, 100001.0)
 	leaves.set_shader_parameter("density_depleted", 1.0)   # 나무는 회복 전에도 서 있다 (색·바람만 변화)
 	leaves.set_shader_parameter("height_depleted", 1.0)
-	leaves.set_shader_parameter("wind_strength", 0.02)
+	leaves.set_shader_parameter("wind_strength", 0.05)   # 모델 단위 흔들림: 12 m 나무에서 예전(4.5 m, 0.02)과 같은 비율
 	_trunk_color(leaves)
 	var rock_mat := _rock()
 	for id in VegPlacement.mesh_ids():

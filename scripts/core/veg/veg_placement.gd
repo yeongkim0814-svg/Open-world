@@ -26,7 +26,12 @@ const GRASS_MIN_NY := 0.6428          # cos 50°
 const GRASS_TILT := deg_to_rad(8.0)
 # 나무
 const TREE_MIN_NY := 0.77
-const TREE_SPACING := 4.0
+const TREE_SPACING := 7.0          # 활엽수 키 ≈ 12 m, 수관 지름 ≈ 5~18 m: 줄기끼리 7 m (수관이 심하게 겹치지 않게)
+const TREE_DENSITY := 1.0 / 300.0  # 숲 최대 밀도 (큰 나무라 1/200 → 1/300)
+const TREE_SIZE_MIN := 0.85        # 배치 크기 배율 (메시 키 ≈ 9~15 m × 이 범위 → 대략 9~15 m 안팎)
+const TREE_SIZE_MAX := 1.15
+const TREE_FOOT := 0.7             # 밑동 표본 (m): 대각 네 점(≈ 1 m)이 줄기 반경(≤ 0.7 m) 밖 → 비탈에서 뜨지 않게
+const MEADOW_CLUMP_R := 12.0       # 초원 나무무리 반경 (간격 7 m 로 3~7 그루가 들어가게)
 const TREE_CLUMP_BELOW := -0.10       # clump_tree 가 이 값 아래 = 빈터 (2048 m 지도 200x200 표본, world_seed 1337 의 35 분위 ≈ -0.103)
 # 바위
 const ROCK_MAX_SLOPE_NY := 0.342      # cos 70° 보다 가파른 면은 제외
@@ -102,7 +107,7 @@ static func begin(ctx: VegContext, layer: int, key: Vector2i, world_seed := 1337
 	job.size = BLOCK[layer]
 	job.o = Vector2(key.x * job.size, key.y * job.size)
 	var dens: float = {VegContext.Layer.GRASS: GRASS_MAX, VegContext.Layer.SHRUB: 1.0 / 150.0,
-			VegContext.Layer.TREE: 1.0 / 200.0, VegContext.Layer.ROCK: 1.0 / 60.0}[layer]
+			VegContext.Layer.TREE: TREE_DENSITY, VegContext.Layer.ROCK: 1.0 / 60.0}[layer]
 	var g := _grid(job.size, dens)
 	job.n = int(g.x)
 	job.cell = g.y
@@ -275,9 +280,9 @@ static func _tree_row(job: Job, j: int) -> void:
 	var ctx := job.ctx; var rng := job.rng; var o := job.o
 	var clump := noise("clump_tree", job.ws)
 	var species := noise("species", job.ws)
-	# 활엽수림: 1/200 m², 무리 노이즈 상위 65 % 안
+	# 활엽수림: 1/300 m², 무리 노이즈 상위 65 % 안
 	var n := job.n; var cell := job.cell
-	var p_cell := cell * cell / 200.0
+	var p_cell := cell * cell * TREE_DENSITY
 	for i in n:
 		var x := o.x + (i + rng.randf()) * cell
 		var z := o.y + (j + rng.randf()) * cell
@@ -309,7 +314,7 @@ static func _tree_tail(job: Job) -> void:
 			var cnt := rng.randi_range(3, 7)
 			for k in cnt:
 				var a := rng.randf() * TAU
-				var r := sqrt(rng.randf()) * 7.0
+				var r := sqrt(rng.randf()) * MEADOW_CLUMP_R
 				_try_tree(ctx, rng, cx + cos(a) * r, cz + sin(a) * r, species, job.placed, job.out)
 
 
@@ -324,11 +329,11 @@ static func _try_tree(ctx: VegContext, rng: RandomNumberGenerator, x: float, z: 
 		return
 	placed.append(p)
 	var kind: String = TREE_KINDS[_pick(rng, [45.0, 25.0, 30.0])]
-	var sz := rng.randf_range(0.75, 1.35)
+	var sz := rng.randf_range(TREE_SIZE_MIN, TREE_SIZE_MAX)
 	var basis := Basis(Vector3.UP, rng.randf() * TAU) * Basis.from_scale(Vector3.ONE * sz)
 	var sp := species.get_noise_2d(x, z)
 	var custom := Color(0.0, rng.randf(), sp * 0.5 + 0.5, 0.0)
-	out.append(_item("tree_%s_%d" % [kind, rng.randi() % TREE_VARIANTS], Transform3D(basis, Vector3(x, ctx.ground_y(x, z, 0.5), z)), custom, sz))
+	out.append(_item("tree_%s_%d" % [kind, rng.randi() % TREE_VARIANTS], Transform3D(basis, Vector3(x, ctx.ground_y(x, z, TREE_FOOT), z)), custom, sz))
 
 
 # ---------- 바위 ----------
